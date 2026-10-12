@@ -30,17 +30,22 @@ Rendering is CPU Cycles in CI and sandboxes. Keep preview renders small (1600x90
 
 ## Data facts to respect
 
-- Loop elevated stations (current): Clark/Lake, State/Lake, Washington/Wabash, Adams/Wabash, Harold Washington Library-State/Van Buren, LaSalle/Van Buren, Quincy, Washington/Wells. Randolph/Wabash and Madison/Wabash closed when Washington/Wabash opened; do not model them.
+- Loop elevated stations (current): Clark/Lake, State/Lake, Washington/Wabash, Adams/Wabash, Harold Washington Library-State/Van Buren, LaSalle/Van Buren, Quincy, Washington/Wells. Randolph/Wabash and Madison/Wabash closed when Washington/Wabash opened; do not model them. State/Lake closed on 5 January 2026 for a rebuild expected to last until 2029: model the station, but trains pass through without stopping.
 - Line colors (CTA): Red #C60C30, Blue #00A1DE, Brown #62361B, Green #009B3A, Orange #F9461C, Purple #522398, Pink #E27EA6, Yellow #F9E300.
 - Train Tracker Locations API: `ttpositions.aspx?key=KEY&rt=brn,g,org,p,pink&outputType=JSON`. Needs a free key from transitchicago.com/developers. Gabi does not have a key yet, so build against mock data that follows CTA's published Train Tracker documentation for the response format. Do not call the live API.
 - Use real data for every building. Where height is missing, estimate from floor count (about 3.9 m per floor for Loop office buildings) and record that it was estimated.
 
 ## Design direction
 
-Inspired by Chicago history, not generic 3D-city looks:
-- Lighting and palette after Jules Guerin's paintings for the 1909 Plan of Chicago: gold low sun, violet and blue-grey haze.
-- The L is the hero element.
-- Type: Big Shoulders Display / Big Shoulders Text (made for the City of Chicago's signage), Chivo Mono for data.
+A modern architect's massing model, presented like the work of a top architecture or design studio.
+
+- Model: buildings in warm white and pale grey; real glass only where the data says the facade is glass. Soft daylight with crisp shadows, light ambient occlusion, a clean neutral ground, AgX color.
+- The L is the hero element: black steel structure. Color comes only from trains and line markers in exact CTA colors. Nothing else is saturated.
+- Night preset: dark model, lit platforms, glowing trains.
+- Interface: strict grid, generous space, thin rules, real hierarchy, light and dark themes that follow the day and night model. Minimal chrome over the 3D view; panels only where they earn their space. No gradients, glows, glassmorphism, rounded pills or decorative icons.
+- Type: Big Shoulders Display (made for the City of Chicago's signage) only for the few big headings, Schibsted Grotesk for UI and body, Chivo Mono for data.
+
+The earlier direction (Jules Guerin's Plan of Chicago palette) is retired; the prototype render in `docs/design/` is from that first test.
 
 ## Gabi's standing preferences
 
