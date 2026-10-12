@@ -34,9 +34,9 @@ DATA = ROOT / "data"
 BUILD = ROOT / "build"
 
 # Height of the top of rail above the street on the Loop structure. Not in the
-# data. Estimated from the usual 14 to 15 ft street clearance under the L plus
-# the depth of the girders and deck.
-TRACK_Z = 6.0
+# data. Estimated from the usual 14 to 16 ft street clearance under the L plus
+# about 5 ft of girder, ties and rail.
+TRACK_Z = 6.4
 TRACK_Z_ESTIMATED = True
 
 LOOP_STATIONS = [
@@ -228,7 +228,19 @@ def is_l_shelter(tags: dict[str, str]) -> bool:
     return tags.get("railway") == "signal_box"
 
 
-def build_buildings(ctx: Context, shelter_ids: set[tuple[str, int]], l_corridor) -> tuple[list[dict], dict]:
+def sits_on_tracks(poly: Polygon, track_core, height: float | None = None) -> bool:
+    """True for volumes that are really part of the L (platforms, station houses, canopies).
+
+    The City footprints and some OSM outlines draw CTA platforms and station houses
+    as buildings. Anything low that overlaps the track bed is left to the L model.
+    """
+    overlap = poly.intersection(track_core).area
+    if overlap < 12:
+        return False
+    return overlap > 0.15 * poly.area and (height is None or height < 40)
+
+
+def build_buildings(ctx: Context, shelter_ids: set[tuple[str, int]], l_corridor, track_core) -> tuple[list[dict], dict]:
     data = ctx.data
     city = load_city_footprints(ctx)
     city_by_id = {c["bldg_id"]: c for c in city if c["bldg_id"]}
@@ -253,10 +265,12 @@ def build_buildings(ctx: Context, shelter_ids: set[tuple[str, int]], l_corridor)
             if not ctx.area.contains(poly.representative_point()):
                 skipped["outside"] += 1
                 continue
+            own_height = parse_length(tags.get("height"))
             on_structure = (
                 key in shelter_ids
                 or is_l_shelter(tags)
                 or (kind == "outline" and layer is not None and layer >= 1 and poly.within(l_corridor))
+                or sits_on_tracks(poly, track_core, own_height)
             )
             if on_structure:
                 skipped["shelter_or_on_structure"] += 1
@@ -362,6 +376,9 @@ def build_buildings(ctx: Context, shelter_ids: set[tuple[str, int]], l_corridor)
         if not ctx.area.contains(g.representative_point()):
             continue
         if g.intersection(osm_union).area > 0.3 * g.area:
+            continue
+        if sits_on_tracks(g, track_core) or "CTA" in (c["name"] or ""):
+            skipped["shelter_or_on_structure"] += 1
             continue
         for poly in c["polygons"]:
             h = resolve_height({}, c["stories"], poly.area)
@@ -686,6 +703,7 @@ def build_stations(
             "location": [r2(center[0]), r2(center[1])],
             "platforms": [],
             "canopies": [],
+            "entrances": [],
         }
         rec.update(CLOSED_STATIONS.get(map_id, {}))
         area = areas.get(osm_name if osm_name in areas else cta_name)
@@ -698,6 +716,12 @@ def build_stations(
                     if m.type == "relation"
                     else None
                 )
+                if m.type == "node" and m.ref in data.nodes:
+                    n = data.nodes[m.ref]
+                    if n.tags.get("railway") == "subway_entrance" and not n.tags.get("level", "0").startswith("-"):
+                        ex, ey = ctx.proj.to_local(n.lat, n.lon)
+                        rec["entrances"].append([r2(ex), r2(ey)])
+                    continue
                 if el is None:
                     continue
                 if m.role == "platform":
@@ -712,14 +736,24 @@ def build_stations(
         if not rec["platforms"]:
             rec["platforms"] = synth_platforms(ctx, center, loop_ways)
             rec["platforms_estimated"] = True
-        # Attach the side of the Loop each platform serves and its CTA stop.
+        # The track each platform serves.
+        main_ways = [t for t in track_ways if t.get("track") in ("inner_loop", "outer_loop", "main")]
+        for plat in rec["platforms"]:
+            c = Polygon(plat["outer"]).centroid
+            nearest = min(main_ways, key=lambda t: LineString(t["points"]).distance(c))
+            plat["track"] = nearest["track"]
+            plat["track_id"] = nearest["id"]
+        # CTA stops and the lines that call here.
         stops = {}
-        for patterns in line_paths.values():
+        lines_here = set()
+        for code, patterns in line_paths.items():
             for p in patterns:
                 for s in p["stops"]:
                     if s.get("station_id") == map_id:
                         stops[s["stop_id"]] = s["stop_name"]
+                        lines_here.add(code)
         rec["stops"] = [{"stop_id": k, "name": v} for k, v in sorted(stops.items())]
+        rec["lines"] = sorted(lines_here) if lines_here else ["brn", "g", "org", "p", "pink"]
         stations.append(rec)
     return stations, shelters
 
@@ -922,7 +956,8 @@ def build() -> dict:
     stations, shelters = build_stations(ctx, track_ways, line_paths)
 
     corridor = unary_union([LineString(t["points"]).buffer(9.0) for t in track_ways])
-    buildings, bstats = build_buildings(ctx, shelters, corridor)
+    track_core = unary_union([LineString(t["points"]).buffer(2.0) for t in track_ways])
+    buildings, bstats = build_buildings(ctx, shelters, corridor, track_core)
     junctions = build_junctions(ctx)
     river = build_water(ctx)
     bridges = build_bridges(ctx)

@@ -7,3 +7,4 @@ $PY -m pipeline.fetch "$@"
 $PY -m pipeline.build
 $PY -m pipeline.validate
 $PY -m pipeline.report
+$PY -m pipeline.export_network

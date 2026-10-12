@@ -51,9 +51,13 @@ def render(model: dict) -> str:
     w("")
     w("## Buildings")
     w("")
-    w(f"- {total} building volumes ({counts['osm_outlines']} OpenStreetMap outlines, {counts['osm_parts']} building parts).")
+    w(
+        f"- {total} building volumes ({counts['osm_outlines']} OpenStreetMap outlines, {counts['osm_parts']} building parts)."
+    )
     w(f"- {counts['outlines_replaced_by_parts']} outlines are drawn through their parts instead (Simple 3D Buildings).")
-    w(f"- {counts['added_from_city_footprints']} footprints come from the City of Chicago where OpenStreetMap has none.")
+    w(
+        f"- {counts['added_from_city_footprints']} footprints come from the City of Chicago where OpenStreetMap has none."
+    )
     w(f"- Heights estimated: **{est} of {total}** ({100 * est / total:.0f} %). Measured: {total - est}.")
     glass = sum(1 for x in buildings if x.get("glass"))
     with_material = sum(1 for x in buildings if x.get("material"))
@@ -81,7 +85,9 @@ def render(model: dict) -> str:
     w("## The L")
     w("")
     tz = meta["track_z"]
-    w(f"- Top of rail at {tz} m above the street{' (estimated, not in the data)' if meta['track_z_estimated'] else ''}.")
+    w(
+        f"- Top of rail at {tz} m above the street{' (estimated, not in the data)' if meta['track_z_estimated'] else ''}."
+    )
     tracks = model["tracks"]
     by_kind: dict[str, float] = {}
     for t in tracks:
@@ -97,7 +103,7 @@ def render(model: dict) -> str:
     w("")
     w("| Line | Direction | Path length (km) | Stops in the model |")
     w("| --- | --- | ---: | --- |")
-    for code, line in model["lines"].items():
+    for _code, line in model["lines"].items():
         for p in line["patterns"]:
             stops = [s["name"] for s in p["stops"] if s.get("station_id") in {st["id"] for st in model["stations"]}]
             w(f"| {line['name']} | {p['from']} to {p['to']} | {p['length'] / 1000:.1f} | {', '.join(stops)} |")

@@ -145,14 +145,22 @@ class MeshBuilder:
 
     def ribbon(self, points: Sequence[XY], z: float, width: float, thickness: float, mat: int = 0) -> None:
         """A flat band of given width following a polyline, as a closed solid."""
-        left, right = offset_polyline(points, width / 2), offset_polyline(points, -width / 2)
+        self.sweep(points, z, width, thickness, 0.0, mat)
+
+    def sweep(
+        self, points: Sequence[XY], z_top: float, width: float, height: float, offset: float = 0.0, mat: int = 0
+    ) -> None:
+        """A rectangular section swept along a polyline, offset sideways (left is positive)."""
         n = len(points)
         if n < 2:
             return
-        top_l = [self.add_vert((p[0], p[1], z)) for p in left]
-        top_r = [self.add_vert((p[0], p[1], z)) for p in right]
-        bot_l = [self.add_vert((p[0], p[1], z - thickness)) for p in left]
-        bot_r = [self.add_vert((p[0], p[1], z - thickness)) for p in right]
+        left = offset_polyline(points, offset + width / 2)
+        right = offset_polyline(points, offset - width / 2)
+        z0 = z_top - height
+        top_l = [self.add_vert((p[0], p[1], z_top)) for p in left]
+        top_r = [self.add_vert((p[0], p[1], z_top)) for p in right]
+        bot_l = [self.add_vert((p[0], p[1], z0)) for p in left]
+        bot_r = [self.add_vert((p[0], p[1], z0)) for p in right]
         for i in range(n - 1):
             self.add_face((top_r[i], top_r[i + 1], top_l[i + 1], top_l[i]), mat)
             self.add_face((bot_l[i], bot_l[i + 1], bot_r[i + 1], bot_r[i]), mat)
@@ -166,11 +174,11 @@ class MeshBuilder:
     ) -> bpy.types.Object:
         mesh = bpy.data.meshes.new(name)
         mesh.from_pydata(self.verts, [], self.faces)
-        mesh.validate(clean_customdata=False)
         for m in materials:
             mesh.materials.append(m)
         if self.face_mats and len(mesh.polygons) == len(self.face_mats):
             mesh.polygons.foreach_set("material_index", self.face_mats)
+        mesh.validate(clean_customdata=False)
         if not smooth:
             mesh.polygons.foreach_set("use_smooth", [False] * len(mesh.polygons))
         mesh.update()

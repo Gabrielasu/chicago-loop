@@ -1,6 +1,6 @@
 # Data report
 
-Generated from `build/loop.json` (2026-10-12T22:09:36Z). Rerun with `python -m pipeline.report`.
+Generated from `build/loop.json` (2026-10-12T22:26:24Z). Rerun with `python -m pipeline.report`.
 
 ## Area and coordinates
 
@@ -12,20 +12,20 @@ Generated from `build/loop.json` (2026-10-12T22:09:36Z). Rerun with `python -m p
 
 ## Buildings
 
-- 1233 building volumes (952 OpenStreetMap outlines, 304 building parts).
+- 1214 building volumes (949 OpenStreetMap outlines, 304 building parts).
 - 74 outlines are drawn through their parts instead (Simple 3D Buildings).
-- 51 footprints come from the City of Chicago where OpenStreetMap has none.
-- Heights estimated: **1035 of 1233** (84 %). Measured: 198.
+- 35 footprints come from the City of Chicago where OpenStreetMap has none.
+- Heights estimated: **1016 of 1214** (84 %). Measured: 198.
 - Facade material recorded for 195 volumes, 58 of them glass.
 
 | Height source | Volumes |
 | --- | ---: |
-| OpenStreetMap `building:levels` x 3.9 m | 524 |
+| OpenStreetMap `building:levels` x 3.9 m | 523 |
 | Canopy (`building=roof`): 0.5 m slab at 4.5 m | 202 |
 | OpenStreetMap `height` (measured) | 198 |
-| Default for kiosks, booths and footprints under 60 m2: 1 floor | 190 |
-| Default, 4 floors (15.6 m) | 81 |
-| City of Chicago `stories` x 3.9 m | 19 |
+| Default for kiosks, booths and footprints under 60 m2: 1 floor | 189 |
+| Default, 4 floors (15.6 m) | 66 |
+| City of Chicago `stories` x 3.9 m | 17 |
 | Building part without height: 4 floors, capped by its building | 16 |
 | Canopy part without height | 2 |
 | Small building part without height: 1 floor | 1 |
@@ -47,7 +47,7 @@ Tallest volumes:
 
 ## The L
 
-- Top of rail at 6.0 m above the street (estimated, not in the data).
+- Top of rail at 6.4 m above the street (estimated, not in the data).
 - 71 elevated track pieces from OpenStreetMap:
   - inner loop: 3172 m
   - outer loop: 3153 m
@@ -103,7 +103,7 @@ Tallest volumes:
 - Randolph/Wabash and Madison/Wabash are not in the data and are not modelled (validated).
 - Clark/Lake has two station nodes in OpenStreetMap; the Blue Line subway one is skipped.
 - Platform canopies and the Tower 18 signal box are mapped as buildings on `layer=2` or `layer=3`.
-  31 such volumes are kept out of the street level buildings and built on the L structure.
+  46 such volumes are kept out of the street level buildings and built on the L structure.
 - Most heights come from floor counts at 3.9 m per floor. Real Loop floor heights range from about
   3.5 m (newer residential) to over 5 m (early office buildings), so these heights are approximate.
 - Canopies (`building=roof`) have no height in the data; they are drawn as thin slabs at 4.5 m.

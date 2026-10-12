@@ -24,3 +24,20 @@ Decisions:
 - **Design direction**: the brief for this run describes a modern massing model look. The CLAUDE.md in the zip still had the earlier Plan of Chicago palette, so CLAUDE.md now carries the modern direction.
 
 Left for later phases: everything from the Blender model on.
+
+## Phase 2: Blender model (done)
+
+Done:
+- `blender/build_loop.py` builds the scene from `build/loop.json` in collections `buildings`, `l_structure`, `stations`, `river`, `streets`, renders `build/renders/{aerial,junction,street,station}-{day,night}.png` at 1600x900 and exports `build/loop.glb` (Draco, about 2 MB, a named node for every station and every track way).
+- `blender/looks.py` holds the day and night looks; `blender/loopgeom.py` the mesh helpers; `blender/README.md` explains it all.
+- The L: rails, ties, plate girders and Warren bracing on every OSM track way, column bents every 14 m (spanning all tracks at that point, so the junctions get wide bents), cross girders flush with the track girders, knee braces, no columns in the river, the Tower 18 signal box on the structure.
+- Stations: mapped platform and canopy outlines, edge strips, railings, canopy columns and lights, stairs from each mapped street entrance, signs with one square per line in CTA colors.
+
+Decisions:
+- **Aerial camera** looks north up the street grid. From any diagonal the L disappears between the towers; from the south the Wells, Van Buren and Wabash structures read as the Loop.
+- **Junction camera** looks nearly straight down on Tower 18. Every oblique view was blocked by the corner towers, and the plan view shows the real track geometry best.
+- **Platforms and station houses from the City footprints** are dropped from the buildings: the city draws CTA platforms as buildings. Anything low that overlaps the track bed is left to the L model.
+- **Top of rail raised to 6.4 m** (estimate) after the first street render showed the structure too low; cross girders now frame flush into the track girders as on the real structure.
+- **Night lighting** uses point lights along the streets (stills only). An emissive street surface looked flat at street level.
+- Added a fourth camera at Quincy to show station detail; the three required views are aerial, junction and street.
+- Rendering uses Metal on this Mac; `--cpu` forces CPU for CI and sandboxes.
