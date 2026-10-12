@@ -1,0 +1,6 @@
+[scripts]
+setup = "./scripts/setup.sh"
+run_mode = "nonconcurrent"
+
+[scripts.run.preview]
+command = ".venv/bin/python blender/prototype_city.py 24 build/preview.png"

@@ -1,0 +1,7 @@
+.venv/
+build/
+node_modules/
+.env
+data/*
+!data/README.md
+.DS_Store
