@@ -14,12 +14,13 @@ Each phase is sized so it can run as its own Conductor workspace. Phases 2, 4 an
 - River, bridges, streets.
 - Render stills in the Plan of Chicago palette. Export `build/loop.glb` (draco-compressed, under ~30 MB).
 
-## Phase 3: Live trains backend
-- Cloudflare Worker proxy for Train Tracker, key in a secret, short cache (a few seconds), CORS for the viewer's origin only.
+## Phase 3: Mock trains (now) and live backend (later)
+- Now: `mock/` simulator that returns Train Tracker shaped JSON (same fields as the real Locations API) with trains moving along the real Loop tracks from `build/loop.json`, stopping at stations, per-line schedules that look plausible. Deterministic with a seed so tests are stable. Recorded sample responses in `mock/samples/`.
+- Later, once Gabi has a key: Cloudflare Worker proxy for Train Tracker, key in a secret, short cache, CORS for the viewer's origin only. Switching is one setting: `VITE_TRAIN_SOURCE=live`.
 
 ## Phase 4: Web viewer
 - three.js scene from `loop.glb`, orbit and street-level views.
-- Poll the proxy, snap each train to its line's track polyline, ease between positions, show run number, destination and next station on hover.
+- Poll the train source (mock by default, the proxy later), snap each train to its line's track polyline, ease between positions, show run number, destination and next station on hover.
 - Station labels, line legend, "last updated" time.
 
 ## Phase 5: Design

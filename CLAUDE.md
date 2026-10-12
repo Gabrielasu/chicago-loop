@@ -12,7 +12,8 @@ Scope of the live trains: CTA L trains inside the Loop only (Brown, Green, Orang
 2. `pipeline/` (to build) Python that turns raw data into clean, projected geometry: building footprints with heights, track centerlines, station platforms, river, streets. Output: `build/loop.json` in a local metric coordinate system (meters, origin at State & Madison, x east, y north).
 3. `blender/` bpy scripts that read `build/loop.json` and build the scene: buildings, the L structure, stations, river, bridges, streets. Exports `build/loop.glb` for the web and renders stills.
 4. `web/` (to build) Vite + TypeScript + three.js viewer. Loads `loop.glb`, polls train positions, places trains on the nearest point of the right line's track, eases between updates.
-5. `proxy/` (to build) a tiny serverless function (Cloudflare Worker) that calls CTA Train Tracker with the API key from an environment secret and returns JSON with CORS headers. The key never ships to the browser.
+5. `mock/` (to build) a mock Train Tracker: until Gabi has a CTA key, the viewer runs on simulated trains. A small module produces responses in the exact shape of the real Locations API (same field names and types), moving trains along the real Loop track geometry at believable speeds and dwell times, stopping at the eight stations, with realistic run numbers and destinations per line. The viewer reads one setting, `VITE_TRAIN_SOURCE=mock|live`, and works the same either way. Mock is the default.
+6. `proxy/` (to build, later) a tiny serverless function (Cloudflare Worker) that calls CTA Train Tracker with the API key from an environment secret and returns JSON with CORS headers. The key never ships to the browser.
 
 ## Running Blender
 
@@ -31,7 +32,7 @@ Rendering is CPU Cycles in CI and sandboxes. Keep preview renders small (1600x90
 
 - Loop elevated stations (current): Clark/Lake, State/Lake, Washington/Wabash, Adams/Wabash, Harold Washington Library-State/Van Buren, LaSalle/Van Buren, Quincy, Washington/Wells. Randolph/Wabash and Madison/Wabash closed when Washington/Wabash opened; do not model them.
 - Line colors (CTA): Red #C60C30, Blue #00A1DE, Brown #62361B, Green #009B3A, Orange #F9461C, Purple #522398, Pink #E27EA6, Yellow #F9E300.
-- Train Tracker Locations API: `ttpositions.aspx?key=KEY&rt=brn,g,org,p,pink&outputType=JSON`. Needs a free key from transitchicago.com/developers. Treat its update rate and fields as something to verify against the live API, not assume.
+- Train Tracker Locations API: `ttpositions.aspx?key=KEY&rt=brn,g,org,p,pink&outputType=JSON`. Needs a free key from transitchicago.com/developers. Gabi does not have a key yet, so build against mock data that follows CTA's published Train Tracker documentation for the response format. Do not call the live API.
 - Use real data for every building. Where height is missing, estimate from floor count (about 3.9 m per floor for Loop office buildings) and record that it was estimated.
 
 ## Design direction
