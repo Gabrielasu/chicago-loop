@@ -1,0 +1,15 @@
+{
+  "name": "@chicago-loop/mock",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A mock of the CTA Train Tracker Locations API that moves trains along the real Loop tracks",
+  "exports": {
+    ".": "./src/index.ts",
+    "./network": "./src/network-data.ts"
+  },
+  "scripts": {
+    "test": "vitest run --root .. mock",
+    "samples": "node scripts/samples.ts"
+  }
+}

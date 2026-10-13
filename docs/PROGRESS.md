@@ -41,3 +41,20 @@ Decisions:
 - **Night lighting** uses point lights along the streets (stills only). An emissive street surface looked flat at street level.
 - Added a fourth camera at Quincy to show station detail; the three required views are aerial, junction and street.
 - Rendering uses Metal on this Mac; `--cpu` forces CPU for CI and sandboxes.
+
+## Phase 3: Mock trains (done)
+
+Done:
+- `docs/cta-api.md`: the Locations API format from CTA's published documentation (read 12 October 2026), and what the mock does and estimates.
+- `mock/`: a TypeScript simulator (`createSimulator`) and a mocked `ttpositions.aspx` (`ttpositions`) answering with the documented JSON, including error codes. Trains run the whole line on the real paths from `mock/data/network.json` (exported from `build/loop.json` by `python -m pipeline.export_network`), accelerate, cruise under speed and curve limits, brake and dwell at each station, with run numbers, destinations, next stations, predictions and headings.
+- Deterministic: a seed plus a clock. `mock/samples/` has responses for a weekday at 08:15, 12:30, 17:30 and 23:45, a Saturday, a single route and an error (`npm run samples`).
+- `TrainSource` with `MockTrainSource` and `LiveTrainSource`, picked by `VITE_TRAIN_SOURCE` (mock by default). The live source calls the proxy at `VITE_TRAIN_PROXY_URL`; `proxy/worker.ts` is the Cloudflare Worker for it, written but not deployed.
+- Vitest (18 tests): the documented format and errors, trains on their trip path and on mapped tracks of their own line inside the model, legs joined without gaps, no backward motion, speed caps, determinism, rush and late night counts, Purple Express on weekday rush only, dwell at every stop, no stop at State/Lake, Loop direction per line.
+
+Decisions:
+- **Simulate whole lines, not just the Loop.** The real API returns every train on a line; the viewer filters to the model. It also means trains enter the model on the right track at the right time.
+- **Timing is analytic, not stepped.** Each trip has a run profile computed once; a train's position is a lookup from its departure time, so any clock time can be asked for directly (tests, samples, scrubbing).
+- **Service days run 03:00 to 03:00**, so trains after midnight stay on the evening timetable.
+- **Speeds** were tuned down after the first run gave terminal to Loop times well under CTA's; open running is now 35 mph, the Loop 25 mph.
+- **Only the five Loop lines** are simulated; Red, Blue and Yellow are valid codes that return no trains.
+- Lint: ESLint with typescript-eslint strict, TypeScript 6.0 in strict mode (typescript-eslint does not support TypeScript 7 yet).
