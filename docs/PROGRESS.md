@@ -75,3 +75,22 @@ Decisions:
 - **Cars outside the model are not drawn**, so trains appear at the edge of the plinth rather than floating beyond it.
 - Labels hide when they would overlap one already placed, flip to the left at the right edge of the screen, and at street level only stations within 450 m are labelled.
 - Narrow screens step the camera back so the whole Loop fits in portrait.
+
+## Phase 5: Design and README (done)
+
+Done:
+- Viewer interface in the modern direction: a strict grid of solid panels with one pixel rules, no rounded corners, shadows, gradients or icons. Big Shoulders Display for the wordmark only, Schibsted Grotesk for the interface, Chivo Mono for data. Light and dark themes follow the day and night model. Fonts are self-hosted from Fontsource.
+- Landing page (`web/index.html`): one screen on a twelve column grid with the hero render, a plain explanation, the key figures, a link into the viewer and data credits.
+- README with the hero render, a GIF of trains moving through Tower 18 (`docs/media/trains-tower18.gif`, recorded with `scripts/capture-gif.mjs`), the other renders, how it works, how to run it, what is estimated, how to go live, and data credits.
+- Accessibility: every text color pair passes WCAG AA (lowest 5.07:1, muted text on the backdrop); all controls are buttons with pressed states and labels; keyboard shortcuts for views, theme and clearing a selection; the legend selects trains, so train details work without a pointer; camera moves are instant under reduced motion; line colors always sit next to the line name.
+- GitHub Actions (`.github/workflows/ci.yml`): ESLint, TypeScript, Vitest and the production build; ruff and pytest for the pipeline.
+
+Decisions:
+- Panels are opaque, not translucent, to stay readable over the model without any blur effects.
+- The recording option `?ui=off` hides the interface for clean captures.
+- CI runs the pipeline tests without bpy or the raw data; the checks on a real `build/loop.json` run locally and skip in CI.
+
+What is left for Gabi:
+- Answer the open questions in `docs/PLAN.md` (Red and Blue subways, hosting).
+- Get a CTA Train Tracker key, deploy `proxy/`, set `VITE_TRAIN_SOURCE=live` and `VITE_TRAIN_PROXY_URL`.
+- When State/Lake reopens (expected 2029), remove it from `CLOSED_STATIONS` in `pipeline/build.py` and rebuild.

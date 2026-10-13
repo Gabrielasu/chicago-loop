@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+    branches: [master]
+
+jobs:
+  web:
+    name: Mock and viewer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  pipeline:
+    name: Data pipeline
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # bpy is not needed for the pipeline tests; build/loop.json checks are skipped without the data.
+      - run: pip install "pyproj>=3.7" "shapely>=2.0" pytest ruff
+      - run: ruff check pipeline tests blender
+      - run: ruff format --check pipeline tests blender
+      - run: python -m pytest -q

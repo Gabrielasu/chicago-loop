@@ -96,7 +96,7 @@ export class ViewController {
       toTarget = toPos.clone().add(toTarget.sub(toPos).normalize().multiplyScalar(0.5));
     }
     this.configure(def.street);
-    if (instant) {
+    if (instant || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       this.stage.camera.position.copy(toPos);
       c.target.copy(toTarget);
     } else {

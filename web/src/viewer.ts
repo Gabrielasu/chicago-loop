@@ -97,13 +97,16 @@ for (const b of document.querySelectorAll<HTMLButtonElement>("[data-view]")) {
 for (const b of document.querySelectorAll<HTMLButtonElement>("[data-theme]")) {
   b.addEventListener("click", () => setTheme(b.dataset.theme as Theme));
 }
-views.onChange((v) => {
+function showView(v: ViewName | "free"): void {
   for (const b of document.querySelectorAll<HTMLButtonElement>("[data-view]")) {
     b.setAttribute("aria-pressed", String(b.dataset.view === v));
   }
   $("hint").hidden = v !== "wabash";
-});
-$("hint").hidden = views.current !== "wabash";
+}
+views.onChange(showView);
+showView(views.current);
+// ?ui=off hides the interface, for clean recordings.
+if (params.get("ui") === "off") document.body.classList.add("bare");
 
 window.addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;

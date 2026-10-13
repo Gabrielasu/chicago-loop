@@ -363,6 +363,15 @@ button {
   pointer-events: none;
 }
 
+.bare .masthead,
+.bare .controls,
+.bare .legend,
+.bare .train,
+.bare .status,
+.bare .hint {
+  display: none;
+}
+
 /* -------------------------------------------------------------- mobile */
 
 @media (max-width: 760px) {

@@ -2,5 +2,8 @@
 setup = "./scripts/setup.sh"
 run_mode = "nonconcurrent"
 
+[scripts.run.viewer]
+command = "npm install && npm run dev"
+
 [scripts.run.preview]
-command = ".venv/bin/python blender/prototype_city.py 24 build/preview.png"
+command = ".venv/bin/python blender/build_loop.py --render aerial --modes day --samples 16 --size 800x450 --no-glb"

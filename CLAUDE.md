@@ -9,11 +9,11 @@ Scope of the live trains: CTA L trains inside the Loop only (Brown, Green, Orang
 ## Architecture
 
 1. `data/` raw inputs (not committed when large): OpenStreetMap export of the Loop and the City of Chicago Building Footprints GeoJSON. See `data/README.md`.
-2. `pipeline/` (to build) Python that turns raw data into clean, projected geometry: building footprints with heights, track centerlines, station platforms, river, streets. Output: `build/loop.json` in a local metric coordinate system (meters, origin at State & Madison, x east, y north).
+2. `pipeline/` Python that turns raw data into clean, projected geometry: building footprints with heights, track centerlines, station platforms, river, streets. Output: `build/loop.json` in a local metric coordinate system (meters, origin at State & Madison, x east, y north).
 3. `blender/` bpy scripts that read `build/loop.json` and build the scene: buildings, the L structure, stations, river, bridges, streets. Exports `build/loop.glb` for the web and renders stills.
-4. `web/` (to build) Vite + TypeScript + three.js viewer. Loads `loop.glb`, polls train positions, places trains on the nearest point of the right line's track, eases between updates.
-5. `mock/` (to build) a mock Train Tracker: until Gabi has a CTA key, the viewer runs on simulated trains. A small module produces responses in the exact shape of the real Locations API (same field names and types), moving trains along the real Loop track geometry at believable speeds and dwell times, stopping at the eight stations, with realistic run numbers and destinations per line. The viewer reads one setting, `VITE_TRAIN_SOURCE=mock|live`, and works the same either way. Mock is the default.
-6. `proxy/` (to build, later) a tiny serverless function (Cloudflare Worker) that calls CTA Train Tracker with the API key from an environment secret and returns JSON with CORS headers. The key never ships to the browser.
+4. `web/` Vite + TypeScript + three.js viewer. Loads `loop.glb`, polls train positions, places trains on the nearest point of the right line's track, eases between updates.
+5. `mock/` a mock Train Tracker: until Gabi has a CTA key, the viewer runs on simulated trains. A small module produces responses in the exact shape of the real Locations API (same field names and types), moving trains along the real Loop track geometry at believable speeds and dwell times, stopping at the eight stations, with realistic run numbers and destinations per line. The viewer reads one setting, `VITE_TRAIN_SOURCE=mock|live`, and works the same either way. Mock is the default.
+6. `proxy/` (written, not deployed) a tiny serverless function (Cloudflare Worker) that calls CTA Train Tracker with the API key from an environment secret and returns JSON with CORS headers. The key never ships to the browser.
 
 ## Running Blender
 
@@ -21,10 +21,11 @@ Blender runs as a Python module, no app needed:
 
 ```sh
 ./scripts/setup.sh                      # creates .venv with Python 3.11 and bpy
-.venv/bin/python blender/prototype_city.py 24 build/preview.png
+./scripts/build-data.sh                 # build/loop.json from the raw data
+.venv/bin/python blender/build_loop.py  # renders, build/loop.glb
 ```
 
-`blender/prototype_city.py` is a procedural stand-in (made-up buildings) from the first test. Replace it with the real data build; keep it only as a reference for materials, lighting and the camera.
+The real build is `blender/build_loop.py` (see `blender/README.md`). `blender/prototype_city.py` is the procedural stand-in from the first test, kept only for reference.
 
 Rendering is CPU Cycles in CI and sandboxes. Keep preview renders small (1600x900, 16 to 32 samples, denoise on). Look at every render you make and fix what is wrong before moving on.
 
