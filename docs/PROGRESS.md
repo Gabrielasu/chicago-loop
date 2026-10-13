@@ -58,3 +58,20 @@ Decisions:
 - **Speeds** were tuned down after the first run gave terminal to Loop times well under CTA's; open running is now 35 mph, the Loop 25 mph.
 - **Only the five Loop lines** are simulated; Red, Blue and Yellow are valid codes that return no trains.
 - Lint: ESLint with typescript-eslint strict, TypeScript 6.0 in strict mode (typescript-eslint does not support TypeScript 7 yet).
+
+## Phase 4: Web viewer (done)
+
+Done:
+- `web/`: Vite, TypeScript (strict) and three.js, in modules for the scene (`scene/`), loaders, trains, data and interface. `npm run dev` runs it.
+- Loads `public/model/loop.glb` (the Blender export, committed, 2 MB) with the same day and night materials as the renders; AgX tone mapping, sun shadows over the whole model, GTAO ambient occlusion on desktops.
+- Trains from the `TrainSource` (mock by default), snapped to the right directed track of their line, eased along the track between updates, drawn as instanced cars that follow curves.
+- Orbit and zoom, Overview, Tower 18 and a street level walk mode on Wabash; hover or tap a train for its details; station labels, line legend with live counts, last updated time.
+- Vitest for snapping, easing and interface text (16 tests). `web/README.md` covers running it and switching to live data.
+- Checked in headless Chrome at 1600x900 and on a 390x844 phone viewport: 60 fps on this Mac in both.
+
+Decisions:
+- **Snap to directed line paths, not to physical tracks.** The Inner and Outer Loop tracks are four meters apart; a path knows its direction of travel, so the train's heading picks the right track. Paths are the same composed trips the mock runs, so Loop lines glide through the change from Loop-bound to outbound without a jump.
+- **Draw one update in the past.** Easing between the last two snapped positions gives smooth motion at any update rate (5 s mock, about 30 s live) at the cost of that delay.
+- **Cars outside the model are not drawn**, so trains appear at the edge of the plinth rather than floating beyond it.
+- Labels hide when they would overlap one already placed, flip to the left at the right edge of the screen, and at street level only stations within 450 m are labelled.
+- Narrow screens step the camera back so the whole Loop fits in portrait.

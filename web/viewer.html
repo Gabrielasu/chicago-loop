@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="A 3D model of the Chicago Loop with the elevated L and its trains." />
+    <meta name="theme-color" content="#e3e3e1" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Chicago Loop viewer</title>
+    <script type="module" src="/src/viewer.ts"></script>
+  </head>
+  <body>
+    <main class="viewer">
+      <div id="stage" class="stage" role="img" aria-label="3D model of the Chicago Loop with the elevated L and its trains"></div>
+      <div id="labels" class="labels" aria-hidden="true"></div>
+
+      <header class="masthead">
+        <h1><a class="wordmark" href="./">Chicago Loop</a></h1>
+        <p class="sub">The elevated L, built from map data</p>
+      </header>
+
+      <nav class="controls" aria-label="View">
+        <div class="group" role="group" aria-label="Camera">
+          <button type="button" data-view="overview" aria-pressed="true" aria-keyshortcuts="1">Overview</button>
+          <button type="button" data-view="tower18" aria-pressed="false" aria-keyshortcuts="2">Tower 18</button>
+          <button type="button" data-view="wabash" aria-pressed="false" aria-keyshortcuts="3">Wabash</button>
+        </div>
+        <div class="group" role="group" aria-label="Light">
+          <button type="button" data-theme="day" aria-pressed="true">Day</button>
+          <button type="button" data-theme="night" aria-pressed="false" aria-keyshortcuts="N">Night</button>
+        </div>
+      </nav>
+
+      <section class="legend" aria-labelledby="legend-title">
+        <h2 id="legend-title">Trains in the model</h2>
+        <ul id="lines"></ul>
+      </section>
+
+      <section class="train" id="train" aria-live="polite" hidden>
+        <div class="train-head">
+          <span class="swatch" id="train-swatch"></span>
+          <span id="train-line"></span>
+          <span class="run" id="train-run"></span>
+          <button type="button" class="close" id="train-close" aria-label="Close train details">Close</button>
+        </div>
+        <dl>
+          <dt>To</dt><dd id="train-dest"></dd>
+          <dt>Next</dt><dd id="train-next"></dd>
+          <dt>Arrives</dt><dd id="train-arr"></dd>
+          <dt>Direction</dt><dd id="train-heading"></dd>
+        </dl>
+      </section>
+
+      <footer class="status">
+        <span id="source">Mock data</span>
+        <span class="rule" aria-hidden="true"></span>
+        <span>Updated <time id="updated">--:--:--</time></span>
+      </footer>
+
+      <p class="hint" id="hint" hidden>Drag to look around. Arrow keys or W A S D to walk.</p>
+      <div class="loading" id="loading" role="status">Loading model <span id="progress">0%</span></div>
+    </main>
+  </body>
+</html>
