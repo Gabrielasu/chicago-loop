@@ -1,0 +1,10 @@
+name = "chicago-loop-cta-proxy"
+main = "worker.ts"
+compatibility_date = "2026-10-01"
+
+[vars]
+# The origin that hosts the viewer. Change before deploying.
+ALLOWED_ORIGIN = "http://localhost:5173"
+
+# The key is a secret, never a var:
+#   npx wrangler secret put CTA_TRAIN_TRACKER_KEY

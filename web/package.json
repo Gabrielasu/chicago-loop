@@ -1,0 +1,26 @@
+{
+  "name": "@chicago-loop/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "node scripts/copy-assets.js",
+    "dev": "vite",
+    "prebuild": "node scripts/copy-assets.js",
+    "build": "vite build",
+    "preview": "vite preview",
+    "sync-model": "node scripts/copy-assets.js --model"
+  },
+  "dependencies": {
+    "@chicago-loop/mock": "*",
+    "@fontsource-variable/chivo-mono": "^5.3.0",
+    "@fontsource-variable/schibsted-grotesk": "^5.3.0",
+    "@fontsource/big-shoulders-display": "^5.3.0",
+    "three": "^0.186.1",
+    "three-mesh-bvh": "^0.9.16"
+  },
+  "devDependencies": {
+    "@types/three": "^0.186.0",
+    "vite": "^8.3.4"
+  }
+}
