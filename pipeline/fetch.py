@@ -3,6 +3,7 @@
 data/loop.osm                        OpenStreetMap via the Overpass API
 data/building-footprints.geojson     City of Chicago Building Footprints (syp8-uezg)
 data/cta-l-stops.json                City of Chicago, CTA System Information: List of L Stops (8pix-ypme)
+data/trees.osm                       OpenStreetMap trees, tree rows and planted areas (optional)
 
 Usage: python -m pipeline.fetch [--force]
 """
@@ -90,6 +91,43 @@ def fetch_osm(force: bool = False) -> None:
     raise SystemExit(f"Could not download OSM data: {last_error}")
 
 
+TREES_PATH = DATA / "trees.osm"
+
+
+def trees_query() -> str:
+    s, w, n, e = BBOX.south, BBOX.west, BBOX.north, BBOX.east
+    return f"""
+[out:xml][timeout:180][bbox:{s},{w},{n},{e}];
+(
+  node["natural"="tree"];
+  way["natural"="tree_row"];
+  way["natural"="wood"];
+  way["landuse"="grass"];
+  way["leisure"="garden"];
+);
+(._;>;);
+out body;
+"""
+
+
+def fetch_trees(force: bool = False) -> None:
+    """Trees are optional: the model builds without them if Overpass is busy."""
+    if TREES_PATH.exists() and not force:
+        print(f"{TREES_PATH.relative_to(ROOT)} exists, skipping")
+        return
+    body = urllib.parse.urlencode({"data": trees_query()}).encode()
+    for url in OVERPASS_URLS:
+        try:
+            raw = _get(url, body, timeout=200)
+            if b"<osm" in raw[:500]:
+                TREES_PATH.write_bytes(raw)
+                print(f"wrote {TREES_PATH.relative_to(ROOT)} ({len(raw) / 1e6:.1f} MB)")
+                return
+        except Exception as exc:
+            print(f"  trees from {url} failed: {exc}")
+    print("trees not downloaded; the model builds without them")
+
+
 def fetch_footprints(force: bool = False) -> None:
     if FOOTPRINTS_PATH.exists() and not force:
         print(f"{FOOTPRINTS_PATH.relative_to(ROOT)} exists, skipping")
@@ -117,6 +155,7 @@ def main(argv: list[str]) -> None:
     fetch_footprints(force)
     fetch_stops(force)
     fetch_osm(force)
+    fetch_trees(force)
 
 
 if __name__ == "__main__":

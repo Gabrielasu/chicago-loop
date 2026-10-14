@@ -26,7 +26,8 @@ export interface MockSourceOptions {
 
 export class MockTrainSource implements TrainSource {
   readonly kind = "mock" as const;
-  readonly pollInterval: number;
+  /** Can change while running, for a faster simulated clock. */
+  pollInterval: number;
   private readonly simulator: Simulator;
   private readonly clock: () => Date;
 

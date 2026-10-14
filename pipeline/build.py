@@ -240,6 +240,25 @@ def sits_on_tracks(poly: Polygon, track_core, height: float | None = None) -> bo
     return overlap > 0.15 * poly.area and (height is None or height < 40)
 
 
+COMPASS = {
+    "N": 0, "NNE": 22.5, "NE": 45, "ENE": 67.5, "E": 90, "ESE": 112.5, "SE": 135, "SSE": 157.5,
+    "S": 180, "SSW": 202.5, "SW": 225, "WSW": 247.5, "W": 270, "WNW": 292.5, "NW": 315, "NNW": 337.5,
+}  # fmt: skip
+
+
+def roof_direction(value: str | None) -> float | None:
+    """OSM roof:direction (degrees or compass point) as a bearing in degrees."""
+    if not value:
+        return None
+    v = value.strip().upper()
+    if v in COMPASS:
+        return float(COMPASS[v])
+    try:
+        return float(v) % 360
+    except ValueError:
+        return None
+
+
 def build_buildings(ctx: Context, shelter_ids: set[tuple[str, int]], l_corridor, track_core) -> tuple[list[dict], dict]:
     data = ctx.data
     city = load_city_footprints(ctx)
@@ -346,6 +365,15 @@ def build_buildings(ctx: Context, shelter_ids: set[tuple[str, int]], l_corridor,
             rec["colour"] = colour
         if roof and roof != "flat":
             rec["roof_shape"] = roof
+            rh = parse_length(tags.get("roof:height"))
+            rl = parse_count(tags.get("roof:levels"))
+            if rh is None and rl:
+                rh = rl * 3.9
+            if rh is not None:
+                rec["roof_height"] = r2(rh)
+            direction = roof_direction(tags.get("roof:direction"))
+            if direction is not None:
+                rec["roof_direction"] = direction
         if name:
             rec["name"] = name
         if city_rec:
@@ -936,6 +964,61 @@ def build_parks(ctx: Context) -> list[dict]:
     return out
 
 
+# ------------------------------------------------------------------- trees
+
+# Crown and height of a tree when the data has none (estimated): a mature
+# street tree such as the honey locusts and lindens common in the Loop.
+TREE_CROWN = 7.0
+TREE_HEIGHT = 10.0
+
+
+def build_trees(ctx: Context, buildings: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Trees and planted areas from data/trees.osm, if it was downloaded."""
+    path = DATA / "trees.osm"
+    if not path.exists():
+        return [], []
+    data = osm.load(path)
+    sub = Context(data, ctx.proj, ctx.area, ctx.area_margin)
+    solid = STRtree([Polygon(b["outer"]) for b in buildings if b["height"] > 4 and b["role"] != "roof"])
+
+    def inside_building(p: Point) -> bool:
+        return any(True for _ in solid.query(p, predicate="within"))
+
+    trees = []
+    for n in data.nodes.values():
+        if n.tags.get("natural") != "tree":
+            continue
+        x, y = ctx.proj.to_local(n.lat, n.lon)
+        p = Point(x, y)
+        if not ctx.area.contains(p) or inside_building(p):
+            continue
+        height = parse_length(n.tags.get("height"))
+        crown = parse_length(n.tags.get("diameter_crown"))
+        rec = {
+            "x": r2(x),
+            "y": r2(y),
+            "height": r2(height or TREE_HEIGHT),
+            "crown": r2(crown or TREE_CROWN),
+            "estimated": height is None or crown is None,
+        }
+        if n.tags.get("leaf_type"):
+            rec["leaf_type"] = n.tags["leaf_type"]
+        trees.append(rec)
+
+    green = []
+    for w in data.ways.values():
+        kind = w.tags.get("landuse") if w.tags.get("landuse") == "grass" else w.tags.get("leisure")
+        if kind not in ("grass", "garden"):
+            continue
+        poly = way_polygon(sub, w)
+        if poly is None or poly.area < 4 or not ctx.area.contains(poly.representative_point()):
+            continue
+        if inside_building(poly.representative_point()):
+            continue
+        green.append({**polygon_json(poly), "kind": kind})
+    return trees, green
+
+
 # -------------------------------------------------------------------- main
 
 
@@ -963,6 +1046,7 @@ def build() -> dict:
     bridges = build_bridges(ctx)
     streets, street_surfaces, plazas = build_streets(ctx)
     parks = build_parks(ctx)
+    trees, green = build_trees(ctx, buildings)
 
     minx, miny, maxx, maxy = area.bounds
     lines_out = {}
@@ -992,6 +1076,7 @@ def build() -> dict:
                 "City of Chicago Data Portal: Building Footprints (syp8-uezg)",
                 "City of Chicago Data Portal: CTA L stops (8pix-ypme)",
             ],
+            "tree_defaults": {"crown": TREE_CROWN, "height": TREE_HEIGHT, "estimated": True},
             "counts": {
                 "buildings": len(buildings),
                 "buildings_height_estimated": estimated,
@@ -1011,6 +1096,8 @@ def build() -> dict:
         "street_surfaces": street_surfaces,
         "plazas": plazas,
         "parks": parks,
+        "green": green,
+        "trees": trees,
     }
 
 

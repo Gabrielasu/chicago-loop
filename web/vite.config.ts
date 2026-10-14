@@ -1,4 +1,3 @@
-import { resolve } from "node:path";
 import { defineConfig } from "vite";
 
 export default defineConfig({
@@ -7,13 +6,8 @@ export default defineConfig({
   envDir: "..",
   build: {
     target: "es2022",
-    // three.js alone is about 700 kB minified; the viewer is one page that needs all of it.
-    chunkSizeWarningLimit: 1000,
-    rollupOptions: {
-      input: {
-        index: resolve(import.meta.dirname, "index.html"),
-        viewer: resolve(import.meta.dirname, "viewer.html"),
-      },
-    },
+    // three.js and its addons (post-processing, reflections, raycast acceleration) are about
+    // 1 MB minified, 270 kB gzipped; the viewer is one page that needs all of it.
+    chunkSizeWarningLimit: 1200,
   },
 });

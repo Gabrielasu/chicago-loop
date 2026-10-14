@@ -188,3 +188,30 @@ export const DWELL = {
   loop: 30,
   other: 25,
 };
+
+/** Cars per train (estimated typical consists) and the length of a train. */
+export const CONSIST: Record<LoopRoute, number> = { brn: 8, g: 6, org: 8, p: 8, pink: 6 };
+export const CAR_LENGTH = 14.63; // 48 ft, CTA 5000-series
+export const CAR_GAP = 0.75;
+
+export function trainLength(route: LoopRoute): number {
+  const n = CONSIST[route];
+  return n * CAR_LENGTH + (n - 1) * CAR_GAP;
+}
+
+/**
+ * Seconds after each headway band starts that a trip pattern's first train
+ * leaves, per "route:trip". Tuned with mock/scripts/tune-phases.ts so the five
+ * lines interleave on the shared Loop track the way a real timetable would,
+ * instead of colliding and being held by the dispatcher.
+ */
+export const PHASES: Record<string, number> = {
+  "brn:0": 140,
+  "g:0": 240,
+  "g:1": 500,
+  "g:2": 740,
+  "g:3": 140,
+  "org:0": 0,
+  "p:0": 320,
+  "pink:0": 0,
+};

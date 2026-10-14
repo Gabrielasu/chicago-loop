@@ -1,8 +1,8 @@
 /**
- * Trains drawn as instanced cars: one instanced mesh per line in its CTA color,
- * plus one for the window bands. Each car sits on the track at its own distance
- * behind the head of the train, turned to the track, so trains bend through the
- * Loop's corners and Tower 18.
+ * Trains drawn as instanced cars. One instanced mesh per line for the bodies in
+ * its CTA color, and shared instanced meshes for glass, running gear and the
+ * head and tail lights. Every car sits on its own two trucks on the track, so
+ * trains bend through the Loop's corners and Tower 18.
  */
 
 import {
@@ -10,21 +10,24 @@ import {
   Color,
   DynamicDrawUsage,
   Group,
+  InstancedBufferAttribute,
   InstancedMesh,
   Matrix4,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   Quaternion,
   type Raycaster,
   Vector3,
 } from "three";
-import { pointAt, type Polyline } from "@chicago-loop/mock";
-import { bearingToYaw, toScene } from "../data/frame.ts";
-import { LINE_COLORS, MATERIALS, type Theme } from "../scene/palette.ts";
+import type { Polyline } from "@chicago-loop/mock";
+import { type Light, lerp, mix } from "../scene/light.ts";
+import { LINE_COLORS, MATERIALS } from "../scene/palette.ts";
+import { CAR, CONSIST, carGeometries, carPoses } from "./car.ts";
 
-export const CAR = { length: 14.63, width: 2.84, height: 3.15, gap: 0.6, floor: 0.55 };
-/** Cars per train. Estimated typical consists. */
-export const CONSIST: Record<string, number> = { brn: 8, g: 6, org: 8, p: 8, pink: 6 };
-const MAX_TRAINS = 60;
+export { CAR, CONSIST, carPoses } from "./car.ts";
+
+const MAX_TRAINS = 70;
+const MAX_CARS = MAX_TRAINS * 8;
 
 export interface DisplayTrain {
   key: string;
@@ -33,33 +36,18 @@ export interface DisplayTrain {
   distance: number;
 }
 
-export interface CarPose {
-  position: [number, number, number];
-  yaw: number;
-}
-
-/** Poses of the cars of a train whose head is at `head` meters along `line`. */
-export function carPoses(line: Polyline, head: number, cars: number, trackZ: number): CarPose[] {
-  const out: CarPose[] = [];
-  for (let k = 0; k < cars; k++) {
-    const center = head - CAR.length / 2 - k * (CAR.length + CAR.gap);
-    const d = Math.min(Math.max(center, 0), line.length);
-    const a = pointAt(line, Math.max(d - CAR.length * 0.4, 0)).point;
-    const b = pointAt(line, Math.min(d + CAR.length * 0.4, line.length)).point;
-    const mid = pointAt(line, d).point;
-    const bearing = ((Math.atan2(b[0] - a[0], b[1] - a[1]) * 180) / Math.PI + 360) % 360;
-    out.push({ position: toScene(mid[0], mid[1], trackZ + CAR.floor + CAR.height / 2), yaw: bearingToYaw(bearing) });
-  }
-  return out;
-}
-
 export class TrainLayer {
   readonly group = new Group();
   private readonly bodies = new Map<string, InstancedMesh>();
-  private readonly windows: InstancedMesh;
-  private readonly windowMaterial: MeshStandardMaterial;
+  private readonly glass: InstancedMesh;
+  private readonly gear: InstancedMesh;
+  private readonly lights: InstancedMesh;
+  private readonly glassMaterial = new MeshStandardMaterial({ roughness: 0.12, metalness: 0.2 });
+  private readonly gearMaterial = new MeshStandardMaterial({ color: 0x1a1b1d, roughness: 0.7, metalness: 0.4 });
+  private readonly lightMaterial = new MeshBasicMaterial({ toneMapped: false });
   private readonly owners = new Map<InstancedMesh, string[]>();
   private readonly bodyMaterials = new Map<string, MeshStandardMaterial>();
+  private night = 0;
 
   constructor(
     private readonly paths: Map<string, Polyline>,
@@ -68,80 +56,119 @@ export class TrainLayer {
     private readonly bounds: [number, number, number, number],
   ) {
     this.group.name = "trains";
-    const body = new BoxGeometry(CAR.length, CAR.height, CAR.width);
-    const band = new BoxGeometry(CAR.length - 1.2, 0.95, CAR.width + 0.04);
-    band.translate(0, 0.4, 0);
+    const geo = carGeometries();
     for (const [route, hex] of Object.entries(LINE_COLORS)) {
-      const mat = new MeshStandardMaterial({ color: new Color(hex), roughness: 0.42, metalness: 0 });
+      const mat = new MeshStandardMaterial({ color: new Color(hex), roughness: 0.38, metalness: 0.15 });
       this.bodyMaterials.set(route, mat);
-      const mesh = new InstancedMesh(body, mat, MAX_TRAINS * (CONSIST[route] ?? 8));
-      mesh.name = `trains_${route}`;
-      mesh.instanceMatrix.setUsage(DynamicDrawUsage);
-      mesh.castShadow = true;
-      mesh.count = 0;
-      mesh.frustumCulled = false;
+      const mesh = this.instanced(geo.body, mat, MAX_TRAINS * (CONSIST[route] ?? 8), `trains_${route}`);
       this.bodies.set(route, mesh);
       this.owners.set(mesh, []);
-      this.group.add(mesh);
     }
-    this.windowMaterial = new MeshStandardMaterial({ roughness: 0.15 });
-    this.windows = new InstancedMesh(band, this.windowMaterial, MAX_TRAINS * 8 * 5);
-    this.windows.instanceMatrix.setUsage(DynamicDrawUsage);
-    this.windows.count = 0;
-    this.windows.frustumCulled = false;
-    this.group.add(this.windows);
-    this.setTheme("day");
+    this.glass = this.instanced(geo.glass, this.glassMaterial, MAX_CARS, "trains_glass");
+    this.gear = this.instanced(geo.gear, this.gearMaterial, MAX_CARS, "trains_gear");
+    // Two lamps at each end of a train: white at the head, red at the tail.
+    const lamp = new BoxGeometry(0.06, 0.22, 0.32);
+    this.lights = this.instanced(lamp, this.lightMaterial, MAX_TRAINS * 4, "trains_lights");
+    this.lights.castShadow = false;
+    this.lights.instanceColor = new InstancedBufferAttribute(new Float32Array(MAX_TRAINS * 4 * 3), 3);
+    this.setLight({ night: 0, golden: 0 });
   }
 
-  setTheme(theme: Theme): void {
+  private instanced(geometry: BoxGeometry | InstancedMesh["geometry"], material: InstancedMesh["material"], count: number, name: string) {
+    const mesh = new InstancedMesh(geometry, material, count);
+    mesh.name = name;
+    mesh.instanceMatrix.setUsage(DynamicDrawUsage);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.count = 0;
+    mesh.frustumCulled = false;
+    this.group.add(mesh);
+    return mesh;
+  }
+
+  setLight(l: Light): void {
+    this.night = l.night;
     const w = MATERIALS.train_window!;
-    const c = theme === "day" ? w.day : w.night;
-    this.windowMaterial.color.setRGB(c[0], c[1], c[2]);
-    if (theme === "night" && w.glow) {
-      this.windowMaterial.emissive.setRGB(...w.glow[0]);
-      this.windowMaterial.emissiveIntensity = w.glow[1];
-    } else {
-      this.windowMaterial.emissiveIntensity = 0;
+    this.glassMaterial.color.setRGB(...mix(w.day, w.night, l.night));
+    if (w.glow) {
+      this.glassMaterial.emissive.setRGB(...w.glow[0]);
+      this.glassMaterial.emissiveIntensity = w.glow[1] * l.night;
     }
     for (const mat of this.bodyMaterials.values()) {
-      mat.emissive = theme === "night" ? mat.color.clone() : new Color(0, 0, 0);
-      mat.emissiveIntensity = theme === "night" ? 0.9 : 0;
+      mat.emissive.copy(mat.color);
+      mat.emissiveIntensity = 0.55 * l.night;
     }
   }
 
-  update(trains: readonly DisplayTrain[]): void {
+
+  /**
+   * Place every car. Seen from far away, cars are drawn wider and taller (never
+   * longer, so they stay on their track) so trains read from above.
+   */
+  update(trains: readonly DisplayTrain[], eye?: Vector3): void {
     const m = new Matrix4();
+    const lampM = new Matrix4();
     const q = new Quaternion();
     const up = new Vector3(0, 1, 0);
-    const one = new Vector3(1, 1, 1);
+    const pos = new Vector3();
+    const scale = new Vector3(1, 1, 1);
+    const n = this.night;
+    const head = new Color(lerp(1.6, 3.2, n), lerp(1.5, 3.0, n), lerp(1.3, 2.6, n));
+    const tail = new Color(lerp(0.9, 2.6, n), 0.05, 0.04);
     const counts = new Map<string, number>();
     for (const mesh of this.bodies.values()) this.owners.set(mesh, []);
-    let w = 0;
+    let shared = 0;
+    let lamps = 0;
+    const [x0, y0, x1, y1] = this.bounds;
     for (const t of trains) {
       const line = this.paths.get(t.pathId);
       const mesh = this.bodies.get(t.route);
       if (!line || !mesh) continue;
       const owners = this.owners.get(mesh)!;
-      const [x0, y0, x1, y1] = this.bounds;
-      for (const pose of carPoses(line, t.distance, CONSIST[t.route] ?? 6, this.trackZ)) {
-        const [px, , pz] = pose.position;
-        if (px < x0 || px > x1 || -pz < y0 || -pz > y1) continue;
+      const poses = carPoses(line, t.distance, CONSIST[t.route] ?? 6, this.trackZ);
+      poses.forEach((pose, k) => {
+        const [lx, ly] = pose.local;
+        if (lx < x0 || lx > x1 || ly < y0 || ly > y1) return;
         const i = counts.get(t.route) ?? 0;
-        if (i >= mesh.instanceMatrix.count) break;
+        if (i >= mesh.instanceMatrix.count || shared >= MAX_CARS) return;
         q.setFromAxisAngle(up, pose.yaw);
-        m.compose(new Vector3(...pose.position), q, one);
+        pos.set(...pose.position);
+        const far = eye ? Math.min(Math.max(eye.distanceTo(pos) / 350, 1), 3.2) : 1;
+        scale.set(1, far, far);
+        m.compose(pos, q, scale);
         mesh.setMatrixAt(i, m);
         owners[i] = t.key;
         counts.set(t.route, i + 1);
-        if (w < this.windows.instanceMatrix.count) this.windows.setMatrixAt(w++, m);
-      }
+        this.glass.setMatrixAt(shared, m);
+        this.gear.setMatrixAt(shared, m);
+        shared++;
+        // Lamps on the leading face of the first car and the trailing face of the last.
+        const ends: [number, Color][] = [];
+        if (k === 0) ends.push([1, head]);
+        if (k === poses.length - 1) ends.push([-1, tail]);
+        for (const [dir, color] of ends) {
+          for (const side of [-0.95, 0.95]) {
+            if (lamps >= this.lights.instanceMatrix.count) break;
+            const offset = new Vector3(dir * (CAR.length / 2 + 0.04), CAR.floor + 0.55, side).applyQuaternion(q);
+            lampM.compose(pos.clone().add(offset.multiply(new Vector3(1, scale.y, scale.z))), q, scale);
+            this.lights.setMatrixAt(lamps, lampM);
+            this.lights.setColorAt(lamps, color);
+            lamps++;
+          }
+        }
+      });
     }
     for (const [route, mesh] of this.bodies) {
       mesh.count = counts.get(route) ?? 0;
       mesh.instanceMatrix.needsUpdate = true;
     }
-    this.windows.count = w;
-    this.windows.instanceMatrix.needsUpdate = true;
+    for (const mesh of [this.glass, this.gear]) {
+      mesh.count = shared;
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+    this.lights.count = lamps;
+    this.lights.instanceMatrix.needsUpdate = true;
+    if (this.lights.instanceColor) this.lights.instanceColor.needsUpdate = true;
   }
 
   /** The key of the train under the ray, if any. */

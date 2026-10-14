@@ -11,4 +11,4 @@ export {
 } from "./source.ts";
 export { localFrame, polyline, project, pointAt, bearing, type LocalFrame, type Polyline } from "./geo.ts";
 export { ctaTimestamp, chicagoTime, serviceClock } from "./time.ts";
-export { SERVICES } from "./schedule.ts";
+export { CAR_GAP, CAR_LENGTH, CONSIST, SERVICES, trainLength } from "./schedule.ts";

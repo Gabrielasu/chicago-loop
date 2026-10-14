@@ -1,6 +1,6 @@
 # Data report
 
-Generated from `build/loop.json` (2026-10-12T22:26:24Z). Rerun with `python -m pipeline.report`.
+Generated from `build/loop.json` (2026-10-13T16:10:51Z). Rerun with `python -m pipeline.report`.
 
 ## Area and coordinates
 
@@ -94,6 +94,7 @@ Tallest volumes:
 - Bridges: 97 outlines. Named: Adams Street Bridge, BP Bridge, Balbo Bridge, Bataan-Corregidor Memorial Bridge, Clark Street Bridge, Dearborn Street Bridge, DuSable Bridge, Franklin Street Bridge, Harrison Pedestrian Bridge, Harrison Street Bridge, Irv Kupcinet Bridge, Jackson Boulevard Bridge, Jackson Bridge, Lake Street Bridge, Madison Street Bridge, Marshall Suloway Bridge, Monroe Street Bridge, Randolph Street Bridge, Van Buren Pedestrian Bridge, Van Buren Street Bridge, Washington Street Bridge, Wells Street Bridge, William P. Fahey Bridge.
 - Streets: 1450 centerlines; width estimated for 1434 (from lanes or road class).
 - Parks: 30 polygons.
+- Trees: 3076 mapped in OpenStreetMap, 830 planted areas. No tree has a height or crown in the data; all are drawn at 10.0 m tall with a 7.0 m crown, varied a little (estimated).
 
 ## Gaps and oddities
 

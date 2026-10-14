@@ -13,6 +13,7 @@ Options:
   --size WxH         render size (default 1600x900)
   --cpu              force CPU rendering (GPU via Metal/CUDA/OptiX is used when available)
   --no-glb           skip the glTF export
+  --no-edges         skip the edge lines on buildings
   --out DIR          where renders go (default build/renders)
 """
 
@@ -35,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import itertools
 
 import looks
+import roofs
 from loopgeom import MeshBuilder, new_collection, resample
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -53,6 +55,7 @@ PLATFORM_RISE = 1.0  # platform top above top of rail
 CANOPY_CLEAR = 3.1  # canopy underside above the platform
 CANOPY_T = 0.28
 CAR_LEN, CAR_W, CAR_H = 14.63, 2.84, 3.15  # CTA 5000-series car, 48 ft long
+CURB = 0.15  # sidewalk above the roadway
 
 
 def parse_args() -> argparse.Namespace:
@@ -64,6 +67,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--size", default="1600x900")
     ap.add_argument("--cpu", action="store_true")
     ap.add_argument("--no-glb", action="store_true")
+    ap.add_argument("--no-edges", action="store_true", help="skip the edge lines on buildings")
     ap.add_argument("--out", default=str(ROOT / "build" / "renders"))
     argv = sys.argv[1:]
     if "--" in argv:
@@ -88,12 +92,13 @@ def build_ground(model: dict, mats: dict, col) -> None:
     land = area.difference(river)
     polys = list(land.geoms) if isinstance(land, MultiPolygon) else [land]
 
+    # The plinth's top is the roadway; blocks stand a curb height above it.
     base = MeshBuilder()
     for p in polys:
         if p.area < 20:
             continue
-        base.prism(list(p.exterior.coords), [list(i.coords) for i in p.interiors], -8.0, 0.0, mat=0)
-    obj = base.to_object("ground", [mats["ground"]], col)
+        base.prism(list(p.exterior.coords), [list(i.coords) for i in p.interiors], -8.0, 0.0, mat=0, roof_mat=1)
+    obj = base.to_object("ground", [mats["ground"], mats["street"]], col)
     obj["kind"] = "ground"
 
     water = MeshBuilder()
@@ -102,22 +107,45 @@ def build_ground(model: dict, mats: dict, col) -> None:
     water_obj = water.to_object("river_water", [mats["water"]], col)
     water_obj["kind"] = "river"
 
-    streets = MeshBuilder()
-    for s in model["street_surfaces"]:
-        streets.flat(s["outer"], s["holes"], 0.04)
-    streets.to_object("street_surface", [mats["street"]], col)
+    streets = unary_union([Polygon(s["outer"], s["holes"]).buffer(0) for s in model["street_surfaces"]])
+    blocks = MeshBuilder()
+    for p in polys:
+        for b in getattr(p.difference(streets), "geoms", [p.difference(streets)]):
+            if isinstance(b, Polygon) and b.area > 2:
+                b = b.simplify(0.05)
+                blocks.prism(list(b.exterior.coords), [list(i.coords) for i in b.interiors], 0.0, CURB, mat=0)
+    blocks.to_object("blocks", [mats["ground"]], col)
 
     green = MeshBuilder()
     for p in model["parks"]:
-        green.flat(p["outer"], p["holes"], 0.025)
+        green.flat(p["outer"], p["holes"], CURB + 0.01)
     green.to_object("parks", [mats["park"]], col)
 
     marks = MeshBuilder()
     # Center lines on the main streets, as thin pale strokes.
     for s in model["streets"]:
         if s["highway"] in ("secondary", "tertiary", "primary", "trunk") and not s["bridge"] and len(s["points"]) > 1:
-            marks.ribbon(s["points"], 0.055, 0.12, 0.01)
+            marks.ribbon(s["points"], 0.015, 0.12, 0.01)
     marks.to_object("street_marks", [mats["marking"]], col)
+
+
+def build_trees(model: dict, mats: dict, col) -> None:
+    """Trees from OpenStreetMap as abstract canopies on thin trunks, and planted ground."""
+    green = MeshBuilder()
+    for g in model.get("green", []):
+        green.flat(g["outer"], g["holes"], CURB + 0.015)
+    green.to_object("green", [mats["park"]], col)
+    mb = MeshBuilder()
+    for t in model.get("trees", []):
+        k = 0.8 + 0.4 * stable_unit(f"{t['x']},{t['y']}")
+        r = t["crown"] / 2 * k
+        h = t["height"] * k
+        cz = max(h - r * 0.9, r * 0.8 + 1.8)
+        mb.blob((t["x"], t["y"], cz), (r, r, r * 0.9), mat=0)
+        mb.box((t["x"], t["y"], (cz - r * 0.5) / 2), (0.3, 0.3, cz - r * 0.5), mat=1)
+    obj = mb.to_object("trees", [mats["tree"], mats["trunk"]], col, smooth=True)
+    obj["render_only"] = True
+    print(f"trees: {len(model.get('trees', []))}")
 
 
 def build_bridges(model: dict, mats: dict, col) -> None:
@@ -151,14 +179,65 @@ def building_tone(b: dict) -> str:
 
 def build_buildings(model: dict, mats: dict, col) -> None:
     groups = {"white": MeshBuilder(), "grey": MeshBuilder(), "glass": MeshBuilder(), "roof": MeshBuilder()}
+    # Every vertex carries its building's roof height ("_roofz", exported to glTF),
+    # so the viewer can floodlight tower crowns at night.
+    for mb in groups.values():
+        mb.tag_name = "_roofz"
     for b in model["buildings"]:
         tone = "roof" if b["role"] == "roof" else building_tone(b)
         mb = groups[tone]
-        mb.prism(b["outer"], b["holes"], b["min_height"], b["height"], mat=0, bottom=b["min_height"] > 0.5)
+        mb.tag = b["height"]
+        if b.get("roof_shape") in roofs.SUPPORTED:
+            roofs.add_roof(mb, b)
+        else:
+            mb.prism(b["outer"], b["holes"], b["min_height"], b["height"], mat=0, bottom=b["min_height"] > 0.5)
     names = {"white": "massing_white", "grey": "massing_grey", "glass": "massing_glass", "roof": "massing_white"}
     for tone, mb in groups.items():
         obj = mb.to_object(f"buildings_{tone}", [mats[names[tone]]], col)
         obj["kind"] = "buildings"
+
+
+EDGE_WIDTH = 0.16  # meters: a hairline from the aerial, a fine line up close
+EDGE_CORNER = math.radians(25)
+
+
+def build_building_edges(model: dict, mats: dict, col) -> None:
+    """Fine dark lines on roof edges and corners, as drawn on an architect's model.
+
+    Render only: the viewer draws its own edges. Built as thin square bars along
+    each roof outline, along raised bases, and up every corner sharper than 25
+    degrees.
+    """
+    mb = MeshBuilder()
+    w = EDGE_WIDTH
+    for b in model["buildings"]:
+        z0, z1 = b["min_height"], b["height"]
+        if b.get("roof_shape") in roofs.SUPPORTED:
+            z1 = b["height"] - roofs.roof_height(b)
+        for ring in [b["outer"], *b["holes"]]:
+            n = len(ring)
+            if n < 3:
+                continue
+            for i in range(n):
+                a, c = ring[i], ring[(i + 1) % n]
+                if math.dist(a, c) < 0.3:
+                    continue
+                mb.beam((a[0], a[1], z1 - w / 2), (c[0], c[1], z1 - w / 2), w, w)
+                if z0 > 0.5:
+                    mb.beam((a[0], a[1], z0 + w / 2), (c[0], c[1], z0 + w / 2), w, w)
+                # A vertical line where the outline turns.
+                p = ring[i - 1]
+                v1 = (a[0] - p[0], a[1] - p[1])
+                v2 = (c[0] - a[0], c[1] - a[1])
+                l1, l2 = math.hypot(*v1), math.hypot(*v2)
+                if l1 < 0.3 or l2 < 0.3:
+                    continue
+                cos = (v1[0] * v2[0] + v1[1] * v2[1]) / (l1 * l2)
+                if math.acos(max(-1.0, min(1.0, cos))) > EDGE_CORNER and z1 - z0 > 1.5:
+                    mb.beam((a[0], a[1], z0), (a[0], a[1], z1), w, w)
+    obj = mb.to_object("building_edges", [mats["edge"]], col)
+    obj["render_only"] = True
+    print(f"edge faces: {len(mb.faces)}")
 
 
 # ---------------------------------------------------------------- the L
@@ -472,38 +551,92 @@ def point_at(points: list, distance: float) -> tuple[float, float, float]:
     return b[0], b[1], math.atan2(b[1] - a[1], b[0] - a[0])
 
 
+TRAIN_SNAPSHOT = ROOT / "build" / "trains-snapshot.json"
+
+
+def car_section() -> list[tuple[float, float]]:
+    """Cross section of a CTA car: vertical sides and a shallow curved roof (car space, y up)."""
+    w = CAR_W / 2
+    side = 2.25
+    pts = [(-w, 0.0), (w, 0.0), (w, side)]
+    for i in range(1, 8):
+        a = math.pi * i / 8
+        pts.append((w * math.cos(a), side + (CAR_BODY - side) * math.sin(a)))
+    pts.append((-w, side))
+    return pts
+
+
+CAR_FLOOR = 0.95
+CAR_BODY = 2.75
+
+
+def add_car(
+    mb: MeshBuilder, x: float, y: float, ang: float, z: float, mat_body: int, mat_glass: int, mat_gear: int
+) -> None:
+    """One car with a curved roof, window band, end windows and trucks."""
+    c, s_ = math.cos(ang), math.sin(ang)
+
+    def to_world(u: float, v: float, h: float) -> tuple[float, float, float]:
+        # u along the car, v across (left positive), h up from the top of rail
+        return (x + u * c - v * s_, y + u * s_ + v * c, z + h)
+
+    sec = car_section()
+    half = CAR_LEN / 2 - 0.15
+    ring_a = [mb.add_vert(to_world(-half, v, CAR_FLOOR + h)) for v, h in sec]
+    ring_b = [mb.add_vert(to_world(half, v, CAR_FLOOR + h)) for v, h in sec]
+    n = len(sec)
+    for i in range(n):
+        j = (i + 1) % n
+        mb.add_face((ring_a[i], ring_a[j], ring_b[j], ring_b[i]), mat_body)
+    mb.add_face(tuple(reversed(ring_a)), mat_body)
+    mb.add_face(tuple(ring_b), mat_body)
+    mb.box(to_world(0, 0, CAR_FLOOR + 1.3), (CAR_LEN - 2.2, CAR_W + 0.03, 0.92), ang, mat=mat_glass)
+    for end in (-1, 1):
+        mb.box(to_world(end * (CAR_LEN / 2 - 0.12), 0, CAR_FLOOR + 1.38), (0.06, CAR_W - 0.9, 0.85), ang, mat=mat_glass)
+        mb.box(to_world(end * 5.2, 0, 0.55), (2.6, CAR_W - 0.6, 0.6), ang, mat=mat_gear)
+    for u in (-3.8, 3.8):
+        mb.box(to_world(u, 0, CAR_FLOOR + CAR_BODY + 0.12), (2.4, 1.6, 0.3), ang, mat=mat_gear)
+
+
 def build_preview_trains(model: dict, mats: dict, col, tz: float) -> None:
-    """A few trains placed on their real paths, for the stills only (the viewer draws live ones)."""
-    placements = [
-        # (line, pattern index, stop name to sit near, offset in m along the path, cars)
-        ("brn", 1, "Quincy/Wells", -30.0, 8),
-        ("g", 0, "Clark/Lake", -250.0, 6),
-        ("org", 1, "LaSalle/Van Buren", 40.0, 8),
-        ("pink", 0, "Adams/Wabash", 0.0, 6),
-        ("p", 0, "Washington/Wabash", -280.0, 8),
-        ("brn", 0, "Merchandise Mart", 200.0, 8),
-        ("g", 2, "Adams/Wabash", 160.0, 6),
-        ("g", 2, "Clark/Lake", -175.0, 6),
-        ("pink", 0, "Washington/Wells", 560.0, 6),
-        ("brn", 0, "Washington/Wells", -250.0, 8),
-    ]
-    for code, idx, stop_name, offset, cars in placements:
-        patterns = model["lines"][code]["patterns"]
-        if idx >= len(patterns):
-            continue
-        p = patterns[idx]
-        stop = next((s for s in p["stops"] if s["name"] == stop_name), None)
-        if stop is None:
-            continue
-        head = stop["distance"] + offset
+    """Trains for the stills, at the positions the mock gives for a weekday morning rush.
+
+    `node mock/scripts/snapshot.ts` writes build/trains-snapshot.json with each
+    train's line, pattern and distance; without it a few hand-placed trains are used.
+    """
+    trains = []
+    if TRAIN_SNAPSHOT.exists():
+        trains = json.loads(TRAIN_SNAPSHOT.read_text())
+    else:
+        for code, idx, stop_name, offset in (
+            ("brn", 1, "Quincy/Wells", -30.0),
+            ("org", 1, "LaSalle/Van Buren", 40.0),
+            ("pink", 0, "Adams/Wabash", 0.0),
+            ("g", 2, "Clark/Lake", -175.0),
+        ):
+            p = model["lines"][code]["patterns"][idx]
+            stop = next((s for s in p["stops"] if s["name"] == stop_name), None)
+            if stop:
+                trains.append({"route": code, "points": p["points"], "distance": stop["distance"] + offset, "cars": 8})
+    x0, y0, x1, y1 = model["meta"]["bounds"]
+    placed = 0
+    for i, t in enumerate(trains):
         mb = MeshBuilder()
-        for k in range(cars):
-            d = head - k * (CAR_LEN + 0.6) - CAR_LEN / 2
-            x, y, ang = point_at(p["points"], d)
-            mb.box((x, y, tz + 0.55 + CAR_H / 2), (CAR_LEN, CAR_W, CAR_H), ang, mat=0)
-            mb.box((x, y, tz + 0.55 + 1.95), (CAR_LEN - 1.2, CAR_W + 0.03, 0.95), ang, mat=1)
-        obj = mb.to_object(f"train_{code}_{idx}_{slug(stop_name)}", [mats[f"train_{code}"], mats["train_window"]], col)
-        obj["line"] = code
+        for k in range(t["cars"]):
+            center = t["distance"] - CAR_LEN / 2 - k * (CAR_LEN + 0.75)
+            fx, fy, _ = point_at(t["points"], center + 5.2)
+            rx, ry, _ = point_at(t["points"], center - 5.2)
+            x, y = (fx + rx) / 2, (fy + ry) / 2
+            if not (x0 < x < x1 and y0 < y < y1):
+                continue
+            add_car(mb, x, y, math.atan2(fy - ry, fx - rx), tz, 0, 1, 2)
+        if mb.faces:
+            obj = mb.to_object(
+                f"train_{t['route']}_{i}", [mats[f"train_{t['route']}"], mats["train_window"], mats["steel"]], col
+            )
+            obj["line"] = t["route"]
+            placed += 1
+    print(f"preview trains: {placed}")
 
 
 def build_street_lamps(model: dict, col) -> None:
@@ -513,6 +646,20 @@ def build_street_lamps(model: dict, col) -> None:
     data.color = (1.0, 0.78, 0.55)
     data.shadow_soft_size = 0.4
     count = 0
+    # A lamp inside a tree canopy shows as a hot spot in the stills: keep lamps out of the trees.
+    tree_grid: dict[tuple[int, int], list[tuple[float, float, float]]] = {}
+    for t in model.get("trees", []):
+        tree_grid.setdefault((int(t["x"] // 10), int(t["y"] // 10)), []).append((t["x"], t["y"], t["crown"] / 2 + 1.0))
+
+    def in_tree(x: float, y: float) -> bool:
+        gx, gy = int(x // 10), int(y // 10)
+        return any(
+            (tx - x) ** 2 + (ty - y) ** 2 < r * r
+            for dx in (-1, 0, 1)
+            for dy in (-1, 0, 1)
+            for tx, ty, r in tree_grid.get((gx + dx, gy + dy), [])
+        )
+
     for s in model["streets"]:
         if s["highway"] not in ("primary", "secondary", "tertiary", "trunk", "unclassified", "residential"):
             continue
@@ -522,6 +669,8 @@ def build_street_lamps(model: dict, col) -> None:
         for i, (x, y, ang) in enumerate(resample(s["points"], 38.0)):
             side = 1 if i % 2 == 0 else -1
             nx, ny = -math.sin(ang) * side_off * side, math.cos(ang) * side_off * side
+            if in_tree(x + nx, y + ny):
+                continue
             lamp = bpy.data.objects.new("lamp", data)
             lamp.location = (x + nx, y + ny, 8.5)
             col.objects.link(lamp)
@@ -568,6 +717,8 @@ def cameras(model: dict, tz: float) -> dict[str, bpy.types.Object]:
         "junction": add_camera(
             "cam_junction", (tower[0] + 8, tower[1] - 62, 300), (tower[0] + 2, tower[1] + 2, tz - 4), 38
         ),
+        # Over the river at Wolf Point, looking east down the main stem between the towers.
+        "river": add_camera("cam_river", (-660, 622, 26), (120, 640, 22), 28),
         # Quincy from above Wells St, south of the platforms, looking north along them.
         "station": add_camera(
             "cam_station_quincy",
@@ -606,7 +757,10 @@ def main() -> None:
         c.objects.unlink(river_obj)
     cols["river"].objects.link(river_obj)
     build_bridges(model, mats, cols["river"])
+    build_trees(model, mats, cols["streets"])
     build_buildings(model, mats, cols["buildings"])
+    if not args.no_edges:
+        build_building_edges(model, mats, new_collection("building_edges"))
     river = unary_union([Polygon(r["outer"], r["holes"]) for r in model["river"]]).buffer(0)
     build_tracks(model, mats, cols["l_structure"], tz)
     build_bents(model, mats, cols["l_structure"], tz, river)
@@ -627,11 +781,12 @@ def main() -> None:
     print("saved", blend)
 
     if args.render == "all":
-        wanted = ["aerial", "junction", "street", "station"]
+        wanted = ["aerial", "river", "junction", "street", "station"]
     else:
         wanted = [] if args.render == "none" else args.render.split(",")
     w, h = (int(v) for v in args.size.split("x"))
     looks.setup_render(scene, args.samples, w, h, gpu=not args.cpu)
+
     for mode in args.modes.split(","):
         looks.apply_mode(scene, mats, mode)
         for key in wanted:
@@ -648,7 +803,12 @@ def export_glb(model: dict, preview_col) -> None:
         obj.select_set(False)
     preview_names = {o.name for o in preview_col.all_objects}
     for obj in bpy.data.objects:
-        if obj.type in ("MESH", "EMPTY") and obj.name not in preview_names and not obj.name.endswith("_marker"):
+        if (
+            obj.type in ("MESH", "EMPTY")
+            and obj.name not in preview_names
+            and not obj.name.endswith("_marker")
+            and not obj.get("render_only")
+        ):
             obj.select_set(True)
     bpy.ops.export_scene.gltf(
         filepath=str(path),
@@ -659,6 +819,7 @@ def export_glb(model: dict, preview_col) -> None:
         export_cameras=False,
         export_lights=False,
         export_extras=True,
+        export_attributes=True,
         export_draco_mesh_compression_enable=True,
         export_draco_mesh_compression_level=7,
         export_draco_position_quantization=16,

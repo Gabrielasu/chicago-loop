@@ -48,8 +48,16 @@ export class TrainFeed {
   }
 
   start(): void {
+    if (this.timer != null) return;
     void this.poll();
     this.timer = window.setInterval(() => void this.poll(), this.source.pollInterval);
+  }
+
+  /** If polling, poll again now and keep polling at the source's current interval. */
+  restart(): void {
+    if (this.timer == null) return;
+    this.stop();
+    this.start();
   }
 
   stop(): void {

@@ -8,3 +8,4 @@ $PY -m pipeline.build
 $PY -m pipeline.validate
 $PY -m pipeline.report
 $PY -m pipeline.export_network
+node mock/scripts/snapshot.ts

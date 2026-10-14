@@ -126,6 +126,14 @@ def render(model: dict) -> str:
     est_width = sum(1 for s in model["streets"] if s["width_estimated"])
     w(f"- Streets: {len(model['streets'])} centerlines; width estimated for {est_width} (from lanes or road class).")
     w(f"- Parks: {len(model['parks'])} polygons.")
+    trees = model.get("trees", [])
+    if trees:
+        d = model["meta"].get("tree_defaults", {})
+        w(
+            f"- Trees: {len(trees)} mapped in OpenStreetMap, {len(model.get('green', []))} planted areas. "
+            f"No tree has a height or crown in the data; all are drawn at {d.get('height', 10)} m tall with a "
+            f"{d.get('crown', 7)} m crown, varied a little (estimated)."
+        )
     w("")
     w("## Gaps and oddities")
     w("")

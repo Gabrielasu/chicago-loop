@@ -42,6 +42,8 @@ export interface RunProfile {
   /** Departure time from each stop */
   departures: number[];
   at(time: number): ProfileState;
+  /** Seconds after departure when the head reaches a distance (arrival, before any dwell there). */
+  timeAt(distance: number): number;
 }
 
 export function curvatureLimit(line: Polyline, distance: number, lateral: number, window = 8): number {
@@ -118,5 +120,12 @@ export function buildProfile(line: Polyline, stops: ProfileStop[], opts: Profile
     return { distance: dist[i]! + d, speed: v0 + acc * tau, dwellingAt: null };
   }
 
-  return { length, duration: arrive[n - 1]!, arrivals, departures, at };
+  function timeAt(distance: number): number {
+    const i = Math.min(Math.max(Math.floor(distance / ds), 0), n - 1);
+    if (i >= n - 1) return arrive[n - 1]!;
+    const f = (distance - dist[i]!) / ds;
+    return depart[i]! + (arrive[i + 1]! - depart[i]!) * Math.min(Math.max(f, 0), 1);
+  }
+
+  return { length, duration: arrive[n - 1]!, arrivals, departures, at, timeAt };
 }

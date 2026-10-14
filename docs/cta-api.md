@@ -114,4 +114,6 @@ Estimated (not in any open feed we use):
 - Only the five Loop lines are simulated. `red`, `blue` and `y` are accepted and come back without trains.
 - The mock does not check the `key`.
 
+Trains keep their distance. A dispatcher (`dispatch` in `mock/src/simulator.ts`) holds each run at its terminal until it reaches every platform in the model at least 60 seconds after the train before it, and finds the track it needs through Tower 18 and Tower 12 clear for 20 seconds after the last train left it. Moves through a junction that use different tracks run at the same time; moves that share or cross track wait. Departure phases per line (`PHASES` in `mock/src/schedule.ts`, tuned with `node mock/scripts/tune-phases.ts`) interleave the five lines on the Loop the way a timetable would, so in the rush most trains are held less than two minutes. A test checks a full weekday and a Saturday: no two trains are ever on the same track closer than a train length inside the model.
+
 The simulator is deterministic: the same seed and the same moment always give the same response. Samples for a weekday and a Saturday are in `mock/samples/` (regenerate with `npm run samples`).

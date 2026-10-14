@@ -3,46 +3,93 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="description" content="A 1:1 model of the Chicago Loop and the elevated L, built in Blender from map data, with trains moving on the real track." />
+    <meta name="description" content="A 3D model of the Chicago Loop with the elevated L and its trains." />
     <meta name="theme-color" content="#e3e3e1" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>Chicago Loop</title>
-    <script type="module" src="/src/landing.ts"></script>
+    <script type="module" src="/src/viewer.ts"></script>
   </head>
-  <body class="landing">
-    <main class="page">
-      <section class="intro">
-        <h1>Chicago<br />Loop</h1>
-        <p class="lead">
-          A 1:1 model of the Loop and the elevated L, built in Blender from OpenStreetMap and City of Chicago data.
-          Brown, Green, Orange, Pink and Purple Line trains move on the real track.
-        </p>
-        <p>
-          There is no CTA Train Tracker key yet, so the trains are simulated in the exact format of CTA's feed, on
-          real paths and timetables. Switching to live positions is one setting.
-        </p>
-        <a class="enter" href="viewer.html">Open the viewer</a>
+  <body>
+    <main class="viewer">
+      <div id="stage" class="stage" role="img" aria-label="3D model of the Chicago Loop with the elevated L and its trains"></div>
+      <div id="labels" class="labels" aria-hidden="true"></div>
 
-        <dl class="facts">
-          <dt>Buildings</dt><dd>1,214</dd>
-          <dt>Loop stations</dt><dd>8</dd>
-          <dt>Loop track</dt><dd>6.3 km</dd>
-          <dt>Junction</dt><dd>Tower 18, Lake and Wells</dd>
-        </dl>
+      <header class="masthead">
+        <h1>Chicago Loop</h1>
+        <p class="sub">The elevated L, built from map data</p>
+      </header>
+
+      <nav class="controls" aria-label="View">
+        <div class="group" role="group" aria-label="Camera">
+          <button type="button" data-view="overview" aria-pressed="true" aria-keyshortcuts="1">Overview</button>
+          <button type="button" data-view="tower18" aria-pressed="false" aria-keyshortcuts="2">Tower 18</button>
+          <button type="button" data-view="wabash" aria-pressed="false" aria-keyshortcuts="3">Wabash</button>
+        </div>
+        <div class="group" role="group" aria-label="Buildings">
+          <button type="button" data-buildings="solid" aria-pressed="true">Solid</button>
+          <button type="button" data-buildings="faint" aria-pressed="false" aria-keyshortcuts="B">Faint</button>
+        </div>
+        <div class="group" role="group" aria-label="Light">
+          <button type="button" data-light="auto" aria-pressed="true" title="Light of the moment shown, from the sun over the Loop">Auto</button>
+          <button type="button" data-light="day" aria-pressed="false">Day</button>
+          <button type="button" data-light="night" aria-pressed="false" aria-keyshortcuts="N">Night</button>
+        </div>
+      </nav>
+
+      <section class="legend" aria-labelledby="legend-title">
+        <h2 id="legend-title">Trains in the model</h2>
+        <div class="plan-wrap" id="plan"></div>
+        <ul id="lines"></ul>
       </section>
 
-      <figure class="hero">
-        <img src="/renders/aerial-day.jpg" width="1600" height="900"
-          alt="Aerial render of the Loop model from the south: white and grey buildings, the black L structure along Wells, Van Buren and Wabash, the river at the top." />
-        <figcaption>The Loop from the south. Rendered in Blender with Cycles.</figcaption>
-      </figure>
+      <section class="panel train" id="train" aria-live="polite" hidden>
+        <div class="panel-head">
+          <span class="swatch" id="train-swatch"></span>
+          <span id="train-line"></span>
+          <span class="run" id="train-run"></span>
+          <button type="button" class="close" id="train-close" aria-label="Close train details">Close</button>
+        </div>
+        <dl>
+          <dt>To</dt><dd id="train-dest"></dd>
+          <dt>Next</dt><dd id="train-next"></dd>
+          <dt>Arrives</dt><dd id="train-arr"></dd>
+          <dt>Direction</dt><dd id="train-heading"></dd>
+        </dl>
+        <div class="panel-actions" role="group" aria-label="Camera">
+          <button type="button" id="train-follow" aria-pressed="false" aria-keyshortcuts="F">Follow</button>
+          <button type="button" id="train-ride" aria-pressed="false" aria-keyshortcuts="R">Ride</button>
+        </div>
+      </section>
 
-      <footer class="credits">
-        <p>
-          Map data &copy; OpenStreetMap contributors. Building footprints: City of Chicago Data Portal. Station and stop
-          ids: Chicago Transit Authority, via the City of Chicago Data Portal.
-        </p>
+      <section class="panel station" id="station" aria-live="polite" hidden>
+        <div class="panel-head">
+          <span id="station-name"></span>
+          <button type="button" class="close" id="station-close" aria-label="Close station details">Close</button>
+        </div>
+        <p class="station-note" id="station-note" hidden></p>
+        <ol class="arrivals" id="station-arrivals"></ol>
+      </section>
+
+      <footer class="status">
+        <span id="source">Mock data</span>
+        <span class="rule" aria-hidden="true"></span>
+        <span>Updated <time id="updated">--:--:--</time></span>
+        <span class="rule clock-only" aria-hidden="true"></span>
+        <span class="speed clock-only" role="group" aria-label="Simulation speed">
+          <button type="button" data-speed="1" aria-pressed="true">1x</button>
+          <button type="button" data-speed="10" aria-pressed="false">10x</button>
+          <button type="button" data-speed="60" aria-pressed="false">60x</button>
+        </span>
       </footer>
+
+      <p class="hint" id="hint" hidden></p>
+      <div class="loading" id="loading" role="status">
+        <div class="loading-inner">
+          <span class="loading-mark">Chicago Loop</span>
+          <span class="loading-bar" aria-hidden="true"><span id="progress-bar"></span></span>
+          <span class="loading-text">Loading the model <span id="progress">0%</span></span>
+        </div>
+      </div>
     </main>
   </body>
 </html>

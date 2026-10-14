@@ -23,9 +23,15 @@ class MeshBuilder:
         self.verts: list[tuple[float, float, float]] = []
         self.faces: list[tuple[int, ...]] = []
         self.face_mats: list[int] = []
+        # Optional per-vertex value written as a float attribute named `tag_name`.
+        self.tag: float = 0.0
+        self.tags: list[float] = []
+        self.tag_name: str | None = None
 
     def add_vert(self, v: Sequence[float]) -> int:
         self.verts.append((float(v[0]), float(v[1]), float(v[2])))
+        if self.tag_name:
+            self.tags.append(self.tag)
         return len(self.verts) - 1
 
     def add_face(self, idx: Sequence[int], mat: int = 0) -> None:
@@ -169,6 +175,17 @@ class MeshBuilder:
         self.add_face((top_l[0], bot_l[0], bot_r[0], top_r[0]), mat)
         self.add_face((top_r[-1], bot_r[-1], bot_l[-1], top_l[-1]), mat)
 
+    def blob(self, center: Sequence[float], radius: Sequence[float], mat: int = 0) -> None:
+        """A once-subdivided icosahedron scaled to (rx, ry, rz): an abstract tree canopy."""
+        cx, cy, cz = center
+        rx, ry, rz = radius
+        base = len(self.verts)
+        for vx, vy, vz in _ICO_VERTS:
+            self.verts.append((cx + vx * rx, cy + vy * ry, cz + vz * rz))
+        for a, b, c in _ICO_FACES:
+            self.faces.append((base + a, base + b, base + c))
+            self.face_mats.append(mat)
+
     def to_object(
         self, name: str, materials: Iterable[bpy.types.Material], collection: bpy.types.Collection, smooth: bool = False
     ) -> bpy.types.Object:
@@ -179,6 +196,9 @@ class MeshBuilder:
         if self.face_mats and len(mesh.polygons) == len(self.face_mats):
             mesh.polygons.foreach_set("material_index", self.face_mats)
         mesh.validate(clean_customdata=False)
+        if self.tag_name and len(self.tags) == len(mesh.vertices):
+            attr = mesh.attributes.new(self.tag_name, "FLOAT", "POINT")
+            attr.data.foreach_set("value", self.tags)
         if not smooth:
             mesh.polygons.foreach_set("use_smooth", [False] * len(mesh.polygons))
         mesh.update()
@@ -270,3 +290,63 @@ def new_collection(name: str, parent: bpy.types.Collection | None = None) -> bpy
     col = bpy.data.collections.new(name)
     (parent or bpy.context.scene.collection).children.link(col)
     return col
+
+
+def _icosphere() -> tuple[list[tuple[float, float, float]], list[tuple[int, int, int]]]:
+    t = (1 + 5**0.5) / 2
+    verts = [
+        (-1, t, 0),
+        (1, t, 0),
+        (-1, -t, 0),
+        (1, -t, 0),
+        (0, -1, t),
+        (0, 1, t),
+        (0, -1, -t),
+        (0, 1, -t),
+        (t, 0, -1),
+        (t, 0, 1),
+        (-t, 0, -1),
+        (-t, 0, 1),
+    ]
+    verts = [tuple(c / math.sqrt(sum(x * x for x in v)) for c in v) for v in verts]
+    faces = [
+        (0, 11, 5),
+        (0, 5, 1),
+        (0, 1, 7),
+        (0, 7, 10),
+        (0, 10, 11),
+        (1, 5, 9),
+        (5, 11, 4),
+        (11, 10, 2),
+        (10, 7, 6),
+        (7, 1, 8),
+        (3, 9, 4),
+        (3, 4, 2),
+        (3, 2, 6),
+        (3, 6, 8),
+        (3, 8, 9),
+        (4, 9, 5),
+        (2, 4, 11),
+        (6, 2, 10),
+        (8, 6, 7),
+        (9, 8, 1),
+    ]
+    cache: dict[tuple[int, int], int] = {}
+
+    def mid(a: int, b: int) -> int:
+        key = (min(a, b), max(a, b))
+        if key not in cache:
+            p = [(verts[a][i] + verts[b][i]) / 2 for i in range(3)]
+            n = math.sqrt(sum(x * x for x in p))
+            verts.append(tuple(x / n for x in p))
+            cache[key] = len(verts) - 1
+        return cache[key]
+
+    out = []
+    for a, b, c in faces:
+        ab, bc, ca = mid(a, b), mid(b, c), mid(c, a)
+        out += [(a, ab, ca), (b, bc, ab), (c, ca, bc), (ab, bc, ca)]
+    return verts, out
+
+
+_ICO_VERTS, _ICO_FACES = _icosphere()

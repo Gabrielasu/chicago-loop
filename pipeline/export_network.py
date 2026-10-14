@@ -77,11 +77,39 @@ def export(model: dict) -> dict:
     }
 
 
+TREES_OUT = ROOT / "web" / "public" / "model" / "trees.json"
+
+
+def export_trees(model: dict) -> list[list[float]]:
+    """Trees for the viewer as [x, y, height, crown] rows, local meters."""
+    return [[t["x"], t["y"], t["height"], t["crown"]] for t in model.get("trees", [])]
+
+
+STREETS_OUT = ROOT / "web" / "public" / "model" / "streets.json"
+LIT_CLASSES = {"motorway", "trunk", "primary", "secondary", "tertiary", "unclassified", "residential", "pedestrian"}
+
+
+def export_streets(model: dict) -> list:
+    """Streets for the night light map: [class, width, [x, y, x, y, ...]] in whole decimeters."""
+    out = []
+    for s in model["streets"]:
+        if s["highway"] not in LIT_CLASSES or s.get("service"):
+            continue
+        flat = [round(v * 10) for p in s["points"] for v in p]
+        out.append([s["highway"], round(s["width"], 1), flat])
+    return out
+
+
 def main() -> None:
     model = json.loads((ROOT / "build" / "loop.json").read_text())
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(export(model), separators=(",", ":")))
     print(f"wrote {OUT.relative_to(ROOT)} ({OUT.stat().st_size / 1e3:.0f} kB)")
+    TREES_OUT.parent.mkdir(parents=True, exist_ok=True)
+    TREES_OUT.write_text(json.dumps(export_trees(model), separators=(",", ":")))
+    print(f"wrote {TREES_OUT.relative_to(ROOT)} ({TREES_OUT.stat().st_size / 1e3:.0f} kB)")
+    STREETS_OUT.write_text(json.dumps(export_streets(model), separators=(",", ":")))
+    print(f"wrote {STREETS_OUT.relative_to(ROOT)} ({STREETS_OUT.stat().st_size / 1e3:.0f} kB)")
 
 
 if __name__ == "__main__":

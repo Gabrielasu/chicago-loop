@@ -15,6 +15,7 @@
   --muted: #5e5e5a;
   --line: #c4c4bf;
   --focus: #161616;
+  --ring: #f2f2f0;
 }
 
 [data-theme="night"] {
@@ -24,6 +25,7 @@
   --muted: #9a9993;
   --line: #34353b;
   --focus: #ecebe6;
+  --ring: #ecebe6;
 }
 
 * {
@@ -89,12 +91,6 @@ button {
   text-transform: uppercase;
 }
 
-.wordmark {
-  color: inherit;
-  text-decoration: none;
-  pointer-events: auto;
-}
-
 .sub {
   margin: 12px 0 0;
   padding-top: 10px;
@@ -151,15 +147,66 @@ button {
   border: var(--rule) solid var(--line);
 }
 
-.legend h2,
-.train-head {
-  margin: 0;
-  padding: 10px 14px 9px;
-  font: 500 11px/1 var(--sans);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
+.plan-wrap {
+  padding: 10px 14px;
   border-bottom: var(--rule) solid var(--line);
+}
+
+.plan {
+  display: block;
+  width: 100%;
+  height: auto;
+  cursor: crosshair;
+}
+
+.plan-tracks polyline {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1;
+  stroke-linejoin: round;
+  opacity: 0.55;
+}
+
+.plan-view {
+  fill: var(--ink);
+  opacity: 0.06;
+  stroke: var(--ink);
+  stroke-width: 0.6;
+  stroke-opacity: 0.35;
+}
+
+.plan-stations rect {
+  fill: var(--panel);
+  stroke: var(--ink);
+  stroke-width: 1;
+}
+
+.plan-stations rect.closed {
+  stroke-dasharray: 1.5 1.5;
+}
+
+.plan-train {
+  cursor: pointer;
+}
+
+.plan-train line {
+  stroke-width: 2;
+}
+
+.plan-train rect {
+  stroke: var(--panel);
+  stroke-width: 1.5;
+}
+
+.plan-train.selected rect {
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.plan-north {
+  font: 500 9px/1 var(--sans);
+  fill: var(--muted);
+  letter-spacing: 0.06em;
 }
 
 .legend ul {
@@ -198,9 +245,9 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-/* --------------------------------------------------------------- train */
+/* ------------------------------------------------------- train, station */
 
-.train {
+.panel {
   position: absolute;
   right: var(--m);
   bottom: calc(var(--m) + 48px);
@@ -209,7 +256,18 @@ button {
   border: var(--rule) solid var(--line);
 }
 
-.train-head {
+.legend h2,
+.panel-head {
+  margin: 0;
+  padding: 10px 14px 9px;
+  font: 500 11px/1 var(--sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: var(--rule) solid var(--line);
+}
+
+.panel-head {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -217,17 +275,90 @@ button {
   font-size: 12px;
 }
 
-.train-head .run {
+.panel-head .run {
   font: 400 12px/1 var(--mono);
   color: var(--muted);
   letter-spacing: 0;
 }
 
-.train-head .close {
+.panel-head .close {
   margin-left: auto;
   font: 500 11px/1 var(--sans);
   letter-spacing: 0.08em;
   color: var(--muted);
+}
+
+.panel-head .close:hover {
+  color: var(--ink);
+}
+
+.panel-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: var(--rule) solid var(--line);
+}
+
+.panel-actions button {
+  padding: 10px 14px 9px;
+  font-size: 13px;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+}
+
+.panel-actions button + button {
+  border-left: var(--rule) solid var(--line);
+}
+
+.panel-actions button:hover,
+.panel-actions button[aria-pressed="true"] {
+  color: var(--ink);
+}
+
+.panel-actions button[aria-pressed="true"] {
+  border-bottom-color: var(--ink);
+}
+
+.station-note {
+  margin: 0;
+  padding: 10px 14px;
+  border-bottom: var(--rule) solid var(--line);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.arrivals {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.arrivals li {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
+.arrivals li + li {
+  border-top: var(--rule) solid var(--line);
+}
+
+.arrivals .eta {
+  font: 400 13px/1 var(--mono);
+}
+
+.arrivals .empty {
+  display: block;
+  color: var(--muted);
+}
+
+.arrivals button {
+  display: contents;
+  text-align: left;
 }
 
 .train dl {
@@ -253,8 +384,7 @@ button {
   font: 400 13px/1.3 var(--mono);
 }
 
-.train dt:nth-last-of-type(1),
-.train dd:nth-last-of-type(1) {
+.train dl {
   border-bottom: 0;
 }
 
@@ -273,6 +403,26 @@ button {
   border: var(--rule) solid var(--line);
   font: 400 12px/1 var(--mono);
   color: var(--muted);
+}
+
+.speed {
+  display: flex;
+  gap: 2px;
+}
+
+.speed button {
+  padding: 4px 6px;
+  font: 400 12px/1 var(--mono);
+  color: var(--muted);
+}
+
+.speed button[aria-pressed="true"] {
+  color: var(--ink);
+  box-shadow: inset 0 -1px 0 var(--ink);
+}
+
+.status:not(.mock) .clock-only {
+  display: none;
 }
 
 .status time {
@@ -317,6 +467,18 @@ button {
   text-align: right;
 }
 
+button.label {
+  pointer-events: auto;
+  cursor: pointer;
+  background: none;
+  text-align: left;
+}
+
+button.label:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .label .note {
   display: block;
   margin-top: 3px;
@@ -330,6 +492,75 @@ button {
   letter-spacing: 0;
   text-transform: none;
   padding-bottom: 26px;
+}
+
+/* -------------------------------------------------------- train markers */
+
+.train-marker {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  padding: 0;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* The square, in the line color with a ring in the panel color so it reads on any background. */
+.train-marker::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: -6px;
+  width: 12px;
+  height: 12px;
+  background: var(--c);
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+/* The way the train is going: a short stroke from the square toward the head. */
+.train-marker::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: -1px;
+  width: 16px;
+  height: 2px;
+  background: var(--c);
+  transform-origin: 0 50%;
+  transform: rotate(var(--a)) translateX(8px);
+}
+
+.train-marker.behind::before,
+.train-marker.behind::after {
+  opacity: 0.6;
+}
+
+[data-theme="night"] .train-marker.selected::before {
+  box-shadow:
+    0 0 0 2px var(--ring),
+    0 0 0 3px var(--bg);
+}
+
+.train-marker.selected::before {
+  left: -8px;
+  top: -8px;
+  width: 16px;
+  height: 16px;
+  box-shadow:
+    0 0 0 2px var(--ring),
+    0 0 0 3px var(--ink);
+}
+
+.train-marker:focus-visible {
+  outline: none;
+}
+
+.train-marker:focus-visible::before {
+  box-shadow:
+    0 0 0 2px var(--ring),
+    0 0 0 4px var(--focus);
 }
 
 /* ---------------------------------------------------------- hint, load */
@@ -350,12 +581,44 @@ button {
 .loading {
   position: absolute;
   inset: 0;
+  z-index: 10;
   display: grid;
   place-items: center;
   background: var(--bg);
   font: 400 13px/1 var(--mono);
   color: var(--muted);
   transition: opacity 0.4s;
+}
+
+.loading-inner {
+  display: grid;
+  gap: 14px;
+  width: min(320px, 70vw);
+}
+
+.loading-mark {
+  font: 800 40px/0.9 var(--display);
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.loading-bar {
+  display: block;
+  height: 1px;
+  background: var(--line);
+}
+
+.loading-bar span {
+  display: block;
+  height: 1px;
+  width: 0;
+  background: var(--ink);
+  transition: width 0.2s linear;
+}
+
+.loading-text {
+  display: flex;
+  justify-content: space-between;
 }
 
 .loading.done {
@@ -366,10 +629,60 @@ button {
 .bare .masthead,
 .bare .controls,
 .bare .legend,
-.bare .train,
+.bare .panel,
+.bare .labels,
 .bare .status,
 .bare .hint {
   display: none;
+}
+
+/* ------------------------------------------------------- short windows */
+
+/* The plan scales with the window height; very short windows keep only the counts. */
+@media (max-height: 820px) and (min-width: 761px) {
+  .plan {
+    width: auto;
+    height: calc(100vh - 480px);
+    margin: 0 auto;
+  }
+
+  .legend button {
+    padding: 6px 14px;
+  }
+}
+
+@media (max-height: 640px) and (min-width: 761px) {
+  .plan-wrap {
+    display: none;
+  }
+}
+
+@media (max-height: 560px) and (min-width: 761px) {
+  .masthead .sub,
+  .legend h2 {
+    display: none;
+  }
+
+  .masthead h1 {
+    font-size: 32px;
+  }
+
+  .legend button {
+    padding: 6px 14px;
+  }
+}
+
+/* Narrow desktop windows: the controls sit under the masthead instead of beside it. */
+@media (max-width: 1100px) and (min-width: 761px) {
+  .controls {
+    top: auto;
+    bottom: calc(var(--m) + 48px);
+    right: var(--m);
+  }
+
+  .panel {
+    bottom: calc(var(--m) + 100px);
+  }
 }
 
 /* -------------------------------------------------------------- mobile */
@@ -393,11 +706,25 @@ button {
     bottom: calc(var(--m) + 44px);
     left: var(--m);
     right: var(--m);
-    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .group {
+    flex: 1 1 auto;
+  }
+
+  .group:first-child {
+    flex-basis: 100%;
   }
 
   .group button {
-    padding: 9px 10px 8px;
+    flex: 1;
+    padding: 10px 8px 9px;
+    white-space: nowrap;
+  }
+
+  .status {
+    font-size: 11px;
   }
 
   .legend {
@@ -408,7 +735,8 @@ button {
     width: 150px;
   }
 
-  .legend h2 {
+  .legend h2,
+  .plan-wrap {
     display: none;
   }
 
@@ -424,11 +752,11 @@ button {
     justify-content: space-between;
   }
 
-  .train {
+  .panel {
     left: var(--m);
     right: var(--m);
     width: auto;
-    bottom: calc(var(--m) + 96px);
+    bottom: calc(var(--m) + 140px);
   }
 
   .hint {
